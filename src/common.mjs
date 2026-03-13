@@ -113,6 +113,7 @@ function validateConfig() {
     if (!hasPrivateKey) throw new Error('Either PRIVATE_KEY env or state/generated-wallet.json must exist for real execution');
     if (CFG.realMaxNotionalUsdc > 100) throw new Error('realMaxNotionalUsdc must be <= 100 for real execution');
     if (CFG.realDailyNotionalLimitUsdc > 500) throw new Error('realDailyNotionalLimitUsdc must be <= 500 for real execution');
+    if (!CFG.profitWallet || CFG.profitWallet.trim() === '') throw new Error('PROFIT_WALLET must be set for real execution');
   }
 }
 
@@ -272,15 +273,25 @@ export function loadWallet({ createIfMissing = false } = {}) {
 }
 
 export async function rpcRequest(method, params = []) {
-  const response = await fetch(CFG.rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  });
-  if (!response.ok) throw new Error(`RPC HTTP ${response.status} ${response.statusText}`);
-  const json = await response.json();
-  if (json.error) throw new Error(`RPC ${method} error: ${JSON.stringify(json.error)}`);
-  return json.result;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(CFG.rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) throw new Error(`RPC HTTP ${response.status} ${response.statusText}`);
+    const json = await response.json();
+    if (json.error) throw new Error(`RPC ${method} error: ${JSON.stringify(json.error)}`);
+    return json.result;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') throw new Error(`RPC ${method} timed out after 15s`);
+    throw error;
+  }
 }
 
 export async function getWalletBalance(address) {
@@ -323,10 +334,28 @@ export async function withLock(lockName, fn) {
 }
 
 export async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`HTTP ${response.status} ${response.statusText} for ${url}: ${text.slice(0, 250)}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 15000);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`HTTP ${response.status} ${response.statusText} for ${url}: ${text.slice(0, 250)}`);
+    }
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') throw new Error(`Request to ${url} timed out`);
+    throw error;
   }
-  return response.json();
+}
+
+export function safeReadJsonFile(filePath, fallback = null) {
+  if (!fs.existsSync(filePath)) return fallback;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return fallback;
+  }
 }

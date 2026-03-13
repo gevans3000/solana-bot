@@ -3,7 +3,6 @@ import { CFG, NOW, fetchJson } from './common.mjs';
 export async function getJupiterQuote({ side, amountUsdc, amountSol, walletAddress }) {
   const url = 'https://lite-api.jup.ag/ultra/v1/order';
   const timeout = 10000;
-  const maxRetries = 1;
 
   const body = {
     wallet: walletAddress,
@@ -13,31 +12,30 @@ export async function getJupiterQuote({ side, amountUsdc, amountSol, walletAddre
     slippageBps: 50,
   };
 
-  let lastError;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}: ${text.slice(0, 100)}`);
-      }
-
-      const quote = await response.json();
-      return quote;
-    } catch (error) {
-      lastError = error;
-      if (attempt < maxRetries) await new Promise(r => setTimeout(r, 500));
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`HTTP ${response.status}: ${text.slice(0, 100)}`);
     }
-  }
 
-  return { error: String(lastError || 'Unknown error') };
+    let quote;
+    try {
+      quote = await response.json();
+    } catch (parseError) {
+      throw new Error(`Invalid JSON from Jupiter: ${parseError.message}`);
+    }
+    return quote;
+  } catch (error) {
+    return { error: String(error || 'Unknown error') };
+  }
 }

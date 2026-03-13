@@ -1,4 +1,4 @@
-import { CFG, NOW, loadPortfolio, savePortfolio, logJsonl } from './common.mjs';
+import { CFG, NOW, isDisabled, loadPortfolio, savePortfolio, logJsonl } from './common.mjs';
 import { getOnChainBalances } from './on-chain-balance.mjs';
 import { executeJupiterSwap } from './jupiter-swap.mjs';
 
@@ -22,6 +22,11 @@ export async function getBalances(currentPrice) {
 }
 
 export async function executeTrade({ side, amount, price, signalId, walletKeypair }) {
+  // DRY_RUN blocks ALL real execution regardless of other settings
+  if (CFG.dryRun) {
+    return { mode: CFG.executionMode, dryRun: true, signalId, side, amount, price };
+  }
+
   if (CFG.executionMode === 'real') {
     return executeRealTrade({ side, amount, price, signalId, walletKeypair });
   }
@@ -34,10 +39,6 @@ export async function executeTrade({ side, amount, price, signalId, walletKeypai
   let deltaUsdc = 0;
   let deltaSol = 0;
   let realizedPnlUsdc = 0;
-
-  if (CFG.dryRun) {
-    return { mode: 'simulated', dryRun: true, signalId, side, amount, price };
-  }
 
   if (side === 'BUY') {
     executedPrice = price * (1 + slipFactor);
@@ -88,6 +89,28 @@ export async function executeTrade({ side, amount, price, signalId, walletKeypai
 }
 
 export async function executeRealTrade({ side, amount, price, signalId, walletKeypair }) {
+  // Safety: DRY_RUN must block real execution even if called directly
+  if (CFG.dryRun) {
+    logJsonl('trades.jsonl', { t: NOW(), type: 'dry_run_blocked', side, amount, price, signalId });
+    return { mode: 'real', dryRun: true, signalId, side, amount, price };
+  }
+
+  // Safety: kill switch check
+  if (isDisabled()) {
+    logJsonl('trades.jsonl', { t: NOW(), type: 'disabled_blocked', side, amount, price, signalId });
+    return { mode: 'real', disabled: true, signalId, side, amount, price };
+  }
+
+  // Log pre-trade intent BEFORE execution
+  logJsonl('trades.jsonl', {
+    t: NOW(),
+    type: 'trade_intent',
+    side,
+    amount,
+    price,
+    signalId,
+  });
+
   try {
     // Execute swap on Jupiter
     const swapResult = await executeJupiterSwap({ side, amount, walletKeypair });
@@ -102,12 +125,28 @@ export async function executeRealTrade({ side, amount, price, signalId, walletKe
         signalId,
         error: swapResult.error,
         step: swapResult.step,
+        txSignature: swapResult.txSignature || null,
       });
+
+      // If confirmation timed out, flag as UNCONFIRMED — do NOT update portfolio
+      if (swapResult.step === 'confirm' && swapResult.txSignature) {
+        logJsonl('trades.jsonl', {
+          t: NOW(),
+          type: 'UNCONFIRMED',
+          txSignature: swapResult.txSignature,
+          side,
+          amount,
+          price,
+          signalId,
+          message: 'Transaction sent but confirmation timed out. Portfolio NOT updated. Manual reconciliation required.',
+        });
+      }
+
       return swapResult;
     }
 
-    // Fetch on-chain balances to update portfolio
-    const walletAddress = walletKeypair.publicKey || '';
+    // Fetch on-chain balances to update portfolio AFTER confirmed swap
+    const walletAddress = walletKeypair.publicKey?.toBase58?.() || walletKeypair.publicKey || '';
     const onChain = await getOnChainBalances(walletAddress);
 
     // Update portfolio from on-chain data

@@ -12,6 +12,7 @@ import {
   withLock,
   runLoop,
   fileInState,
+  safeReadJsonFile,
 } from './common.mjs';
 import { getBalances, executeTrade } from './portfolio.mjs';
 import { getSolUsdPrice } from './price-source.mjs';
@@ -94,8 +95,8 @@ async function tick() {
     // Check if price cache is stale
     const cacheFile = fileInState('price-cache.json');
     let priceCacheStale = false;
-    if (fs.existsSync(cacheFile)) {
-      const cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+    const cache = safeReadJsonFile(cacheFile);
+    if (cache && cache.timestamp) {
       const cacheAgeMs = Date.now() - new Date(cache.timestamp).getTime();
       priceCacheStale = cacheAgeMs >= CFG.stalePriceSec * 1000;
     }

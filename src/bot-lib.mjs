@@ -1,4 +1,4 @@
-import { CFG, NOW, isDisabled, logJsonl, loadJson, saveJson, makeSignalId, fileInState } from './common.mjs';
+import { CFG, NOW, isDisabled, logJsonl, loadJson, saveJson, makeSignalId, fileInState, safeReadJsonFile } from './common.mjs';
 import { getSolUsdPrice } from './price-source.mjs';
 import { getBalances } from './portfolio.mjs';
 import fs from 'node:fs';
@@ -18,12 +18,10 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
   // Check if price cache is stale
   const cacheFile = fileInState('price-cache.json');
   let priceCacheStale = false;
-  if (fs.existsSync(cacheFile)) {
-    try {
-      const cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-      const cacheAgeMs = Date.now() - new Date(cache.timestamp).getTime();
-      priceCacheStale = cacheAgeMs >= CFG.stalePriceSec * 1000;
-    } catch {}
+  const cache = safeReadJsonFile(cacheFile);
+  if (cache && cache.timestamp) {
+    const cacheAgeMs = Date.now() - new Date(cache.timestamp).getTime();
+    priceCacheStale = cacheAgeMs >= CFG.stalePriceSec * 1000;
   }
 
   const stateFile = `state-${bot}.json`;

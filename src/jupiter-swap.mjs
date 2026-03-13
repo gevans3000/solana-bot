@@ -1,5 +1,5 @@
 import { VersionedTransaction } from '@solana/web3.js';
-import { CFG, NOW } from './common.mjs';
+import { CFG, NOW, rpcRequest } from './common.mjs';
 
 export async function executeJupiterSwap({ side, amount, walletKeypair }) {
   const httpTimeout = 15000;
@@ -16,7 +16,7 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          wallet: walletKeypair.publicKey,
+          wallet: walletKeypair.publicKey?.toBase58?.() || walletKeypair.publicKey,
           inputMint: side === 'BUY' ? CFG.usdcMint : CFG.solMint,
           outputMint: side === 'BUY' ? CFG.solMint : CFG.usdcMint,
           amount: side === 'BUY' ? Math.floor(amount * 1e6) : Math.floor(amount * 1e9),
@@ -32,7 +32,13 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
         throw new Error(`Order HTTP ${response.status}: ${text.slice(0, 100)}`);
       }
 
-      quote = await response.json();
+      let body;
+      try {
+        body = await response.json();
+      } catch (parseError) {
+        throw new Error(`Order response invalid JSON: ${parseError.message}`);
+      }
+      quote = body;
     } catch (error) {
       return {
         success: false,
@@ -56,7 +62,7 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
       };
     }
 
-    // Step 3: POST to /ultra/v1/execute with signed transaction
+    // Step 3: POST to /ultra/v1/execute with signed transaction (NO retry)
     let txResult;
     try {
       const controller = new AbortController();
@@ -78,7 +84,13 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
         throw new Error(`Execute HTTP ${response.status}: ${text.slice(0, 100)}`);
       }
 
-      txResult = await response.json();
+      let body;
+      try {
+        body = await response.json();
+      } catch (parseError) {
+        throw new Error(`Execute response invalid JSON: ${parseError.message}`);
+      }
+      txResult = body;
     } catch (error) {
       return {
         success: false,
@@ -89,18 +101,32 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
 
     const txSignature = txResult.signature;
 
-    // Step 4: Confirm transaction (never auto-retry)
+    // Step 4: Confirm transaction via getSignatureStatuses (never auto-retry the swap)
     let confirmed = false;
     const confirmStart = Date.now();
     while (Date.now() - confirmStart < confirmTimeout) {
       try {
-        // In real implementation, would use getSignatureStatuses
-        confirmed = true;
-        break;
-      } catch (error) {
-        if (Date.now() - confirmStart >= confirmTimeout) break;
-        await new Promise(r => setTimeout(r, 1000));
+        const result = await rpcRequest('getSignatureStatuses', [[txSignature]]);
+        const status = result?.value?.[0];
+        if (status) {
+          if (status.err) {
+            return {
+              success: false,
+              error: `Transaction failed on-chain: ${JSON.stringify(status.err)}`,
+              step: 'confirm',
+              txSignature,
+            };
+          }
+          if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') {
+            confirmed = true;
+            break;
+          }
+        }
+      } catch {
+        // RPC error during confirmation poll — keep polling until timeout
       }
+      if (Date.now() - confirmStart >= confirmTimeout) break;
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     if (!confirmed) {
