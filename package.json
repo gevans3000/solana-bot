@@ -1,0 +1,23 @@
+{
+  "name": "solana-sol-usdc-agent-team-final",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "wallet": "node src/wallet.mjs",
+    "wallet:new": "node src/wallet.mjs --new",
+    "dry-run": "node src/all.mjs --dry-run",
+    "all": "node src/all.mjs",
+    "watch": "node src/watch.mjs",
+    "recent": "node src/recent.mjs",
+    "ui": "node src/ui-server.mjs",
+    "smoke": "node src/smoke.mjs",
+    "shadow": "SHADOW_MODE=1 node src/all.mjs",
+    "reconcile": "node src/reconcile.mjs"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "bs58": "^6.0.0"
+  }
+}

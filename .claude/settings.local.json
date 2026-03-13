@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(do:*)",
+      "Bash(grep:*)",
+      "Read(//c/Users/lovel/desktop/solana-bot/**)",
+      "Bash(__NEW_LINE_1facc612780c9f8e__ bash /tmp/verify_changes.sh)",
+      "Bash(RUN_ONCE=1 DRY_RUN=1 PRICE_MODE=mock node:*)",
+      "Bash(do echo:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)"
+    ]
+  }
+}
