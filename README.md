@@ -294,5 +294,7 @@ Shows SOL and USDC discrepancies with status (OK/DRIFT/MISMATCH).
 
 ---
 
-## Troubleshooting
-See `TROUBLESHOOTING.md`.
+## Documentation
+- `README.md`: This file.
+- `GUARDRAILS.md`: The technical and philosophical constitution of the bot.
+- `TROUBLESHOOTING.md`: Common issues and solutions.
