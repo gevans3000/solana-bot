@@ -34,10 +34,28 @@ Set `DRY_RUN=0` in `.env` or start from the UI using **Start Live**.
 
 ## Profit sweeps are not happening
 Check:
-- `PROFIT_WALLET` is set
+- `PROFIT_WALLET` is set (mandatory in real mode)
 - USDC is above `USDC_RESERVE`
 - sweep size is above `USDC_PROFIT_MIN`
 - SOL is above `MIN_SOL_FOR_SWEEP`
+
+## Transaction is UNCONFIRMED
+The bot sent the swap transaction, but RPC confirmation polls timed out (60s).
+1. Copy the `txSignature` from `logs/trades.jsonl` or the `UNCONFIRMED` log.
+2. Search it on [Solscan](https://solscan.io).
+3. If the transaction succeeded on-chain, run `npm run reconcile` to manually re-sync the portfolio state.
+
+## RPC or Jupiter API errors / timeouts
+Network calls timeout after 15s to prevent the bot from hanging.
+- Check if your internet connection is stable.
+- Verify your `RPC_URL` is responsive.
+- If you see `429 Too Many Requests`, Jupiter is rate-limiting you; try reducing `LOOP_SEC`.
+
+## Corrupted JSON state or cache
+If a state file (e.g., `state/portfolio.json`) is corrupted:
+- The bot will fallback to default values automatically.
+- Check logs for any JSON parse errors.
+- You can manually move or delete a corrupted file to let the bot regenerate it.
 
 ## Duplicate executors
 The executor uses a file lock under `state/executor.lock`. Remove it only if the process crashed and the lock is stale.

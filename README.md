@@ -239,9 +239,28 @@ To enable real on-chain trading:
 2. Set `RPC_URL` to a mainnet RPC endpoint (not devnet)
 3. Provide a keypair: either `PRIVATE_KEY` env (base58 encoded) or `state/generated-wallet.json`
 4. Set realistic limits: `REAL_MAX_NOTIONAL_USDC` ≤ 100, `REAL_DAILY_NOTIONAL_LIMIT_USDC` ≤ 500
-5. Keep `DRY_RUN=0`
+5. Set `PROFIT_WALLET` (mandatory for real mode)
+6. Keep `DRY_RUN=0`
 
 Real trades are logged to `logs/trades.jsonl`.
+
+### Production Hardening & Safety
+This bot includes several mission-critical safety features:
+- **Strict DRY_RUN**: When `DRY_RUN=1`, all real execution paths are physically blocked at the lowest level.
+- **Network Timeouts**: All RPC and Jupiter API calls have a 15s timeout to prevent hanging.
+- **Safe State Handling**: JSON state and cache files are read using a safety-first utility that handles file corruption without crashing.
+- **Kill Switch**: The `DISABLED` file is checked immediately before every real trade execution.
+- **No Auto-Retry**: To prevent double-spending or duplicate fills, the bot never automatically retries a failed swap transaction.
+
+### Transaction Lifecycle (Real Mode)
+1. **Signal**: Bot emits a trade idea.
+2. **Intent**: `trade_intent` is logged to `logs/trades.jsonl` *before* execution.
+3. **Execution**: Transaction is signed and sent to Jupiter Ultra API.
+4. **Confirmation**: The bot polls `getSignatureStatuses` until the transaction is `confirmed` or `finalized`. 
+5. **Portfolio Update**: Asset balances are updated from on-chain data *only after* confirmation.
+6. **Final Log**: A `trade` or `trade_failed` entry is recorded.
+
+**Note on UNCONFIRMED transactions**: If a transaction is sent but confirmation polls time out (60s), the transaction is flagged as `UNCONFIRMED` in the logs and the portfolio is **not** updated. You must use `npm run reconcile` or check a block explorer to verify the final status.
 
 ---
 
