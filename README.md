@@ -79,6 +79,16 @@ Live simulated execution on devnet:
 npm run all
 ```
 
+### 6) Quick Start: Tiny Mainnet Testing
+If you want to test on mainnet with the smallest possible risk ($1 trades):
+1. In `.env`, set `NETWORK_LABEL=mainnet-beta` and `RPC_URL=https://api.mainnet-beta.solana.com`.
+2. Set `EXECUTION_MODE=real` and `DRY_RUN=0`.
+3. Set `BULL_BUY_USDC=1`, `BEAR_BUY_USDC=1`, and `MIN_TRADE_USDC=1`.
+4. Run `npm run wallet:new` to generate a fresh mainnet key.
+5. Send **$10 USDC** and **0.05 SOL** to the address in `state/generated-wallet.json`.
+6. Set your personal address in `PROFIT_WALLET`.
+7. Run `npm run all`.
+
 ---
 
 ## Minimal user flow
