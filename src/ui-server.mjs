@@ -288,6 +288,13 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/') return sendHtml(res);
 
+  if (req.method === 'GET' && url.pathname === '/status') {
+    const snapshot = stateSnapshot();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(snapshot));
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/events') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',

@@ -45,7 +45,7 @@ export async function getSolUsdPrice() {
     try {
       const cache = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
       const cacheAgeMs = Date.now() - new Date(cache.timestamp).getTime();
-      if (cacheAgeMs < CFG.stalePriceSec * 1000) {
+      if (cacheAgeMs < CFG.loopSec * 1000) {
         return cache.price;
       }
     } catch {}

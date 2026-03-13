@@ -1,3 +1,4 @@
+import { VersionedTransaction } from '@solana/web3.js';
 import { CFG, NOW } from './common.mjs';
 
 export async function executeJupiterSwap({ side, amount, walletKeypair }) {
@@ -43,9 +44,10 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
     // Step 2: Deserialize and sign transaction
     let signedTx;
     try {
-      // Note: In real implementation would use @solana/web3.js
-      // For now, just mock the signing
-      signedTx = quote.transaction;
+      const swapTransactionBuf = Buffer.from(quote.transaction, 'base64');
+      const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+      transaction.sign([walletKeypair]);
+      signedTx = Buffer.from(transaction.serialize()).toString('base64');
     } catch (error) {
       return {
         success: false,

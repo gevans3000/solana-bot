@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { Keypair } from '@solana/web3.js';
 import { CFG, fileInState, loadJson } from './common.mjs';
 
 let cachedKeypair = null;
@@ -48,15 +49,11 @@ export function loadKeypair() {
     seed = pkcs8Buffer.slice(16, 48);
   }
 
-  // Note: In real usage, would use @solana/web3.js Keypair.fromSeed(seed)
-  // For now, cache the seed
-  cachedKeypair = { seed };
+  cachedKeypair = Keypair.fromSeed(seed);
   return cachedKeypair;
 }
 
 export function getWalletPublicKey() {
   const keypair = loadKeypair();
-  const wallet = loadJson('generated-wallet.json', null);
-  if (wallet && wallet.address) return wallet.address;
-  throw new Error('Cannot determine wallet public key');
+  return keypair.publicKey.toBase58();
 }
