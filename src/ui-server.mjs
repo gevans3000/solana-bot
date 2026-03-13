@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import { CFG, NOW, fileInLogs, loadJson, logJsonl } from './common.mjs';
+import { CFG, NOW, fileInLogs, loadJson, logJsonl, makeSignalId } from './common.mjs';
 
 let runner = null;
 const sseClients = [];
@@ -149,9 +149,12 @@ button.stop:hover { background: #dc2626; }
     <h1>Solana SOL/USDC Agent Dashboard</h1>
 
     <div class="controls">
-      <button onclick="start(true)">Start Paper (Observe Only)</button>
-      <button onclick="start(false)">Start Paper (Autonomous)</button>
-      <button class="stop" onclick="stop()">Stop</button>
+      <button onclick="start(true)" title="Runs loops but suppresses all trade execution">Start Observation</button>
+      <button onclick="start(false)" id="btn-start-auto" style="background: #1d4ed8">Start Autonomous</button>
+      <button class="stop" onclick="stop()">Stop Bot</button>
+      <span style="flex-grow: 1"></span>
+      <button onclick="manualTrade('BUY')" style="background: #059669">Manual BUY</button>
+      <button onclick="manualTrade('SELL')" style="background: #d97706">Manual SELL</button>
     </div>
 
     <div class="status-bar">
@@ -159,8 +162,8 @@ button.stop:hover { background: #dc2626; }
         <label>Status</label>
         <div class="value" id="status-text">Stopped</div>
       </div>
-      <div class="status-item">
-        <label>Mode</label>
+      <div class="status-item" id="mode-well">
+        <label>Execution Mode</label>
         <div class="value" id="status-mode">-</div>
       </div>
       <div class="status-item">
@@ -221,10 +224,23 @@ button.stop:hover { background: #dc2626; }
       fetch('/stop', { method: 'POST' }).catch(e => console.error(e));
     }
 
+    function manualTrade(side) {
+      if (!confirm(\`Are you sure you want to execute a manual \${side}?\`)) return;
+      fetch('/manual-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ side })
+      }).catch(e => console.error(e));
+    }
+
     function updateUI(snapshot) {
       document.getElementById('status-running').className = 'status-item ' + (snapshot.running ? 'running' : 'stopped');
       document.getElementById('status-text').textContent = snapshot.running ? 'Running' : 'Stopped';
-      document.getElementById('status-mode').textContent = snapshot.mode;
+      
+      const isLiveReal = snapshot.mode === 'real' && !snapshot.dryRun;
+      document.getElementById('status-mode').textContent = isLiveReal ? 'REAL (LIVE)' : (snapshot.dryRun ? 'PAPER (DRY)' : snapshot.mode.toUpperCase());
+      document.getElementById('mode-well').style.borderLeftColor = isLiveReal ? '#ef4444' : '#64748b';
+
       document.getElementById('status-price').textContent = snapshot.price ? snapshot.price.toFixed(2) : '-';
       document.getElementById('status-time').textContent = new Date(snapshot.now).toLocaleTimeString();
 
@@ -328,6 +344,34 @@ const server = http.createServer((req, res) => {
     stopAll();
     res.writeHead(302, { Location: '/' });
     res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/manual-trade') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { side } = JSON.parse(body);
+        const priceCache = loadJson('price-cache.json', { price: 0 });
+        const signal = {
+          t: NOW(),
+          bot: 'MANUAL',
+          side,
+          amount: side === 'BUY' ? CFG.bullBuyUsdc : CFG.bullSellSol,
+          amountUnit: side === 'BUY' ? 'USDC' : 'SOL',
+          price: priceCache.price,
+          reason: 'Manual user intervention via UI',
+        };
+        signal.signalId = makeSignalId(signal);
+        logJsonl('signals.jsonl', signal);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, signalId: signal.signalId }));
+      } catch (err) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
     return;
   }
 

@@ -57,6 +57,13 @@ function decide(signals) {
   if (!signals.length) return { action: 'NO_TRADE', reason: 'no signals' };
   const latestByBot = new Map();
   for (const signal of signals) latestByBot.set(signal.bot, signal);
+
+  // Manual override priority
+  const manual = latestByBot.get('MANUAL') || null;
+  if (manual) {
+    return { action: 'TRADE', chosen: manual, manual: true };
+  }
+
   const bull = latestByBot.get('BULL') || null;
   const bear = latestByBot.get('BEAR') || null;
 
@@ -103,7 +110,10 @@ async function tick() {
 
     const balances = await getBalances(price);
 
-    if (state.lastTradeAt) {
+    const freshSignals = activeSignals(readSignals(state));
+    const decision = decide(freshSignals);
+
+    if (state.lastTradeAt && !decision.manual) {
       const elapsed = (Date.now() - new Date(state.lastTradeAt).getTime()) / 1000;
       if (elapsed < CFG.cooldownSec) {
         logJsonl('executor.jsonl', {
@@ -121,13 +131,13 @@ async function tick() {
     const maxTradesPerDay = CFG.executionMode === 'real' ? CFG.realMaxTradesPerDay : CFG.maxTradesPerDay;
     const dailyNotionalLimit = CFG.executionMode === 'real' ? CFG.realDailyNotionalLimitUsdc : CFG.dailyNotionalLimitUsdc;
 
-    if (state.tradesToday >= maxTradesPerDay) {
+    if (!decision.manual && state.tradesToday >= maxTradesPerDay) {
       logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'max trades/day', balances });
       saveJson('state-exec.json', state);
       return;
     }
 
-    if (state.notionalTodayUsdc >= dailyNotionalLimit) {
+    if (!decision.manual && state.notionalTodayUsdc >= dailyNotionalLimit) {
       logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'daily notional limit', balances });
       saveJson('state-exec.json', state);
       return;
@@ -139,8 +149,6 @@ async function tick() {
       return;
     }
 
-    const freshSignals = activeSignals(readSignals(state));
-    const decision = decide(freshSignals);
     const currentWindow = getDecisionWindow();
 
     logJsonl('executor.jsonl', {
