@@ -65,7 +65,12 @@ Then open:
 ```text
 http://localhost:8787
 ```
-Click **Start Dry Run** first.
+
+You'll see two start buttons:
+- **Start Observation**: Runs all loops but doesn't execute trades (observes only, useful for monitoring signals)
+- **Start Autonomous**: Runs with `DRY_RUN=0` — paper trades execute and portfolio updates in real-time
+
+Start with **Start Observation** to monitor signals, then switch to **Start Autonomous** for paper trading.
 
 ### 5) Run from terminal instead of UI (optional)
 Dry run:
@@ -91,15 +96,17 @@ If you want to test on mainnet with the smallest possible risk ($1 trades):
 
 ---
 
-## Minimal user flow
+## Minimal user flow (Paper Trading)
 1. unzip
 2. `npm install`
 3. `cp .env.example .env`
-4. set `PROFIT_WALLET`
-5. `npm run wallet:new`
-6. `npm run ui`
-7. click **Start Dry Run**
-8. when ready, set `DRY_RUN=0` and click **Start Live**
+4. set `PROFIT_WALLET` to your address
+5. `npm run wallet:new` (generates a test wallet)
+6. `npm run ui` (starts dashboard on http://127.0.0.1:8787)
+7. click **Start Autonomous** (runs with `DRY_RUN=0` for paper trading)
+8. Watch trades execute and portfolio update in real-time on the dashboard
+
+**Note**: Paper trades only execute when you click **Start Autonomous**. Click **Start Observation** to monitor signals without trading.
 
 ---
 
@@ -113,6 +120,18 @@ With `NETWORK_LABEL=devnet` and `EXECUTION_MODE=simulated`, “live” means:
 - no real token swaps are sent
 
 This package is optimized for theory-testing and guardrail validation first.
+
+### Paper Trading Features
+In autonomous mode with `EXECUTION_MODE=simulated` and `DRY_RUN=0`:
+- ✅ Trades execute against simulated portfolio
+- ✅ SOL/USDC balances update in real-time
+- ✅ Unrealized and realized PnL calculated accurately
+- ✅ All trades display in the dashboard
+- ✅ Discord alerts fire on every trade (if configured)
+- ✅ Profit sweeps to `PROFIT_WALLET` in state
+- ✅ Full JSONL audit trail in `logs/`
+
+The UI dashboard updates every 5 seconds with latest portfolio state and trade history.
 
 ---
 
@@ -301,6 +320,25 @@ npm run reconcile
 ```
 
 Shows SOL and USDC discrepancies with status (OK/DRIFT/MISMATCH).
+
+---
+
+## Paper Trading Troubleshooting
+
+### Trades not appearing in the UI table
+**Solution**: Make sure you clicked **Start Autonomous** (not Start Observation). Start Observation runs the loops but doesn't execute trades. Switch to **Start Autonomous** for `DRY_RUN=0` mode.
+
+### Unrealized PnL shows $0
+**Expected behavior**: Unrealized PnL is $0 if you have no open SOL position. Once you buy SOL, it will show the profit/loss against your average entry price.
+
+### Signals showing "edge ?bps" instead of a number
+**Fixed**: Old signals in `logs/signals.jsonl` may not have `edgeBps`. The display now shows `?` as a fallback.
+
+### No Discord alerts when trades execute
+Make sure:
+1. `ALERT_WEBHOOK_URL` is set to your Discord webhook
+2. `ALERT_ON_TRADE=1` in `.env`
+3. You're running **Start Autonomous** (not Observation)
 
 ---
 
