@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/ui-server.mjs"],
+      "port": 8787
+    },
+    {
+      "name": "watch",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/watch.mjs"],
+      "port": 8788
+    },
+    {
+      "name": "all",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/all.mjs"],
+      "port": 8789
+    },
+    {
+      "name": "dry-run",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/all.mjs", "--dry-run"],
+      "port": 8790
+    }
+  ]
+}

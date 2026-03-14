@@ -1,5 +1,6 @@
 import { CFG, NOW, isDisabled, logJsonl, runLoop } from './common.mjs';
 import { getBalances, sweepProfitWallet } from './portfolio.mjs';
+import { getSolUsdPrice } from './price-source.mjs';
 
 async function tick() {
   if (isDisabled()) {
@@ -11,7 +12,8 @@ async function tick() {
     return;
   }
 
-  const balances = await getBalances();
+  const price = await getSolUsdPrice();
+  const balances = await getBalances(price);
   if (balances.sol < CFG.minSolForSweep) {
     logJsonl('sweeper.jsonl', { t: NOW(), type: 'skip', reason: 'sol reserve too low', balances });
     return;

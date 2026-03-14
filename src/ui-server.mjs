@@ -248,7 +248,7 @@ button.stop:hover { background: #dc2626; }
       if (p) {
         document.getElementById('portfolio-sol').textContent = p.sol?.toFixed(3) || '-';
         document.getElementById('portfolio-usdc').textContent = p.usdc?.toFixed(2) || '-';
-        const unrealPnl = p.sol && snapshot.price ? (snapshot.price - (p.avgEntryPrice || 0)) * p.sol : 0;
+        const unrealPnl = p.sol && snapshot.price && p.avgEntryPrice ? (snapshot.price - p.avgEntryPrice) * p.sol : 0;
         document.getElementById('portfolio-unrealized').innerHTML =
           '<div class="value' + (unrealPnl >= 0 ? ' green' : ' red') + '">' + unrealPnl.toFixed(2) + '</div>';
         document.getElementById('portfolio-realized').innerHTML =
@@ -256,15 +256,20 @@ button.stop:hover { background: #dc2626; }
       }
 
       const trades = snapshot.trades || [];
-      const tradesHtml = trades.map(t => \`
+      const tradesHtml = trades.map(t => {
+        const side = t.signal?.side || t.side;
+        const amount = t.signal?.amount ?? t.amount;
+        const price = t.signal?.price ?? t.price;
+        const pnl = t.execution?.realizedPnlUsdc ?? t.realizedPnlUsdc;
+        return \`
         <div class="trade-row">
           <div>\${new Date(t.t).toLocaleTimeString()}</div>
-          <div class="trade-side \${t.side}">\${t.side}</div>
-          <div>\${t.amount?.toFixed(4) || '-'}</div>
-          <div>\${t.price?.toFixed(2) || '-'}</div>
-          <div>\${t.realizedPnlUsdc?.toFixed(2) || '-'}</div>
-        </div>
-      \`).join('');
+          <div class="trade-side \${side}">\${side || '-'}</div>
+          <div>\${amount != null ? Number(amount).toFixed(4) : '-'}</div>
+          <div>\${price != null ? Number(price).toFixed(2) : '-'}</div>
+          <div>\${pnl != null ? Number(pnl).toFixed(2) : '-'}</div>
+        </div>\`;
+      }).join('');
       document.getElementById('trades').innerHTML = tradesHtml || '<div class="trade-row">No trades yet</div>';
 
       const reasons = snapshot.skipReasons || {};
@@ -275,7 +280,7 @@ button.stop:hover { background: #dc2626; }
 
       const signals = snapshot.lastSignals || [];
       document.getElementById('last-signals').innerHTML = signals.length > 0
-        ? signals.map(s => \`<div class="signal-item \${s.side}">\${new Date(s.t).toLocaleTimeString()} <strong>\${s.side}</strong> @ \${s.price.toFixed(2)} (edge \${s.edgeBps}bps)</div>\`).join('')
+        ? signals.map(s => \`<div class="signal-item \${s.side}">\${new Date(s.t).toLocaleTimeString()} <strong>\${s.side}</strong> @ \${s.price.toFixed(2)} (edge \${s.edgeBps ?? '?'}bps)</div>\`).join('')
         : '<div style="opacity: 0.5;">No signals yet</div>';
     }
 
@@ -361,6 +366,7 @@ const server = http.createServer((req, res) => {
           amount: side === 'BUY' ? CFG.bullBuyUsdc : CFG.bullSellSol,
           amountUnit: side === 'BUY' ? 'USDC' : 'SOL',
           price: priceCache.price,
+          edgeBps: CFG.minExpectedEdgeBps,
           reason: 'Manual user intervention via UI',
         };
         signal.signalId = makeSignalId(signal);

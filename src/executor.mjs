@@ -73,7 +73,7 @@ function decide(signals) {
 
   const chosen = bear || bull;
   if (!chosen) return { action: 'NO_TRADE', reason: 'no usable signal' };
-  if (chosen.edgeBps < CFG.minExpectedEdgeBps) {
+  if (chosen.edgeBps == null || chosen.edgeBps < CFG.minExpectedEdgeBps) {
     return { action: 'NO_TRADE', reason: 'edge below minimum', chosen };
   }
   return { action: 'TRADE', chosen, bull, bear };

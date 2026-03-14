@@ -38,7 +38,11 @@ function startOne(name, file) {
 
   child.stdout.on('data', (chunk) => process.stdout.write(`[${name}] ${chunk}`));
   child.stderr.on('data', (chunk) => process.stderr.write(`[${name}] ${chunk}`));
+  // Reset restart counter after 60s of stable running
+  const stableTimer = setTimeout(() => { state.attempt = 0; }, 60000);
+
   child.on('exit', (code) => {
+    clearTimeout(stableTimer);
     state.lastExit = { code, time: Date.now() };
     if (!exiting) {
       if (code !== 0) {

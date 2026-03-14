@@ -11,7 +11,7 @@ export async function getBalances(currentPrice) {
   }
 
   return {
-    mode: 'simulated',
+    mode: CFG.executionMode,
     usdc: p.usdc,
     sol: p.sol,
     avgEntryPrice: p.avgEntryPrice,
@@ -74,6 +74,7 @@ export async function executeTrade({ side, amount, price, signalId, walletKeypai
   savePortfolio(p);
   return {
     mode: 'simulated',
+    success: true,
     signalId,
     side,
     amount,
