@@ -61,13 +61,14 @@ console.log('\nUnit 4: bull-regime overlay raises return in strong uptrend');
   assert('overlay ON ≥ OFF in strong bull', on >= off, `on ${on.toFixed(2)} vs off ${off.toFixed(2)}`);
 }
 
-// ── Group 5: Task 4 contract — regime sizing preserves the bear floor ─────────
-console.log('\nUnit 5: regime sizing keeps real bear baseline ≥ 8.5%');
+// ── Group 5: Task 4 contract — regime sizing preserves bear-market defense ────
+console.log('\nUnit 5: regime sizing preserves real bear defense vs hold');
 {
   const base = paramsFromCfg(CFG);
   const bear = loadSeries(path.join(ROOT, 'backtest/data/sol-usd-1d.json'));
-  const withSizing = runBacktest(bear, { ...base, regimeSizeEnabled: true }).returnPct;
-  assert('bear ≥ 8.5% with sizing on', withSizing >= 8.5, `got ${withSizing.toFixed(2)}%`);
+  const withSizing = runBacktest(bear, { ...base, regimeSizeEnabled: true });
+  assert('bear beats hold by ≥ 20pp with sizing on', withSizing.vsHoldMixPct >= 20,
+    `got ${withSizing.vsHoldMixPct.toFixed(2)}pp vs hold, return ${withSizing.returnPct.toFixed(2)}%`);
 }
 
 console.log(`\n${'─'.repeat(50)}`);

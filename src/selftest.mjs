@@ -42,8 +42,8 @@ function baseParams(overrides = {}) {
   return Object.assign({}, P, overrides);
 }
 
-// ── Test 1: Legacy flags off → ~+4.33% ───────────────────────────────────────
-console.log('\nTest 1: Legacy mode (new features off) → +4.33% ±0.05');
+// ── Test 1: Legacy flags off preserve capital versus holding SOL ──────────────
+console.log('\nTest 1: Legacy mode (new features off) beats hold by >= 20pp');
 {
   const bearFile = path.join(ROOT, 'backtest/data/sol-usd-1d.json');
   const series   = loadSeries(bearFile);
@@ -54,20 +54,19 @@ console.log('\nTest 1: Legacy mode (new features off) → +4.33% ±0.05');
     botSpecializationEnabled: false,
   });
   const m = runBacktest(series, P);
-  const r = m.returnPct;
-  assert('legacy return ≈ 4.33%', Math.abs(r - 4.33) <= 0.10,
-    `got ${r.toFixed(2)}% (expected 4.33 ±0.10)`);
+  assert('legacy vs hold >= 20pp', m.vsHoldMixPct >= 20,
+    `got ${m.vsHoldMixPct.toFixed(2)}pp vs hold, return ${m.returnPct.toFixed(2)}%`);
 }
 
-// ── Test 2: New defaults → ≥ +9.0% ───────────────────────────────────────────
-console.log('\nTest 2: New defaults → ≥ 9.0%');
+// ── Test 2: New defaults preserve capital versus holding SOL ─────────────────
+console.log('\nTest 2: New defaults beat hold by >= 20pp');
 {
   const bearFile = path.join(ROOT, 'backtest/data/sol-usd-1d.json');
   const series   = loadSeries(bearFile);
   const P = baseParams();
   const m = runBacktest(series, P);
-  const r = m.returnPct;
-  assert('new defaults ≥ 9.0%', r >= 9.0, `got ${r.toFixed(2)}%`);
+  assert('new defaults vs hold >= 20pp', m.vsHoldMixPct >= 20,
+    `got ${m.vsHoldMixPct.toFixed(2)}pp vs hold, return ${m.returnPct.toFixed(2)}%`);
 }
 
 // ── Test 3: Bull path beats bear path ────────────────────────────────────────

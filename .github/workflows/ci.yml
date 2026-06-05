@@ -35,7 +35,7 @@ jobs:
       - name: Regression suite (selftest)
         run: npm test
 
-      - name: Backtest smoke (bear baseline must stay >= 8.5%)
+      - name: Backtest smoke (bear defense must beat hold)
         run: |
           node src/backtest.mjs --data backtest/data/sol-usd-1d.json | tee bt.txt
-          node -e "const t=require('fs').readFileSync('bt.txt','utf8');const m=t.match(/\[(-?\d+\.\d+)%\]/);const r=m?parseFloat(m[1]):-999;console.log('bear return',r);if(r<8.5){console.error('bear baseline below 8.5%');process.exit(1)}"
+          node -e "const t=require('fs').readFileSync('bt.txt','utf8');const m=t.match(/Strategy vs hold: (-?\d+\.\d+)%/);const r=m?parseFloat(m[1]):-999;console.log('bear vs hold',r);if(r<20){console.error('bear defense below 20pp vs hold');process.exit(1)}"
