@@ -2,8 +2,10 @@ import { spawn } from 'node:child_process';
 import { logJsonl, NOW } from './common.mjs';
 
 const dryRun = process.argv.includes('--dry-run');
+const shadow = process.argv.includes('--shadow');
 const env = { ...process.env };
 if (dryRun) env.DRY_RUN = '1';
+if (shadow) env.SHADOW_MODE = '1';
 
 const entries = [
   ['EXEC', 'src/executor.mjs'],

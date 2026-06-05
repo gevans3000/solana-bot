@@ -12,13 +12,15 @@
     "recent": "node src/recent.mjs",
     "ui": "node src/ui-server.mjs",
     "smoke": "node src/smoke.mjs",
-    "shadow": "SHADOW_MODE=1 node src/all.mjs",
+    "shadow": "node src/all.mjs --shadow",
     "reconcile": "node src/reconcile.mjs",
     "backtest": "node src/backtest.mjs",
     "backtest:sweep": "node src/backtest.mjs --sweep",
     "backtest:wf": "node src/backtest.mjs --sweep --walk-forward",
     "backtest:fetch": "node backtest/fetch-data.mjs",
     "test": "node src/selftest.mjs",
+    "test:unit": "node src/unit.mjs",
+    "test:all": "node src/unit.mjs && node src/selftest.mjs",
     "preflight": "node src/preflight.mjs"
   },
   "dependencies": {

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # simulated mode so validateConfig() doesn't require a real wallet / profit wallet
+    env:
+      EXECUTION_MODE: simulated
+      DRY_RUN: '1'
+      RPC_URL: https://api.devnet.solana.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Syntax check all source
+        run: |
+          for f in src/*.mjs backtest/*.mjs; do node --check "$f"; done
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Regression suite (selftest)
+        run: npm test
+
+      - name: Backtest smoke (bear baseline must stay >= 8.5%)
+        run: |
+          node src/backtest.mjs --data backtest/data/sol-usd-1d.json | tee bt.txt
+          node -e "const t=require('fs').readFileSync('bt.txt','utf8');const m=t.match(/\[(-?\d+\.\d+)%\]/);const r=m?parseFloat(m[1]):-999;console.log('bear return',r);if(r<8.5){console.error('bear baseline below 8.5%');process.exit(1)}"

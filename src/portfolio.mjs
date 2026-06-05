@@ -152,14 +152,22 @@ export async function executeRealTrade({ side, amount, price, signalId, walletKe
 
     // Update portfolio from on-chain data
     const p = loadPortfolio();
+    const avgEntryBefore = p.avgEntryPrice || 0;
     p.sol = onChain.sol;
     p.usdc = onChain.usdc;
 
+    // Track realized PnL in real mode too, so the daily-loss circuit breaker
+    // (which accumulates from execution.realizedPnlUsdc) actually fires on live
+    // losses. SELL realizes (price - avgEntry) * amount; BUY realizes nothing.
+    // `price` is the decision price — a close estimate of the on-chain fill.
+    let realizedPnlUsdc = 0;
     if (side === 'BUY' && p.sol > 0) {
-      const previousCost = (p.sol - amount) * (p.avgEntryPrice || 0);
+      const previousCost = (p.sol - amount) * avgEntryBefore;
       p.avgEntryPrice = (previousCost + amount * price) / p.sol;
-    } else if (side === 'SELL' && p.sol <= 1e-9) {
-      p.avgEntryPrice = 0;
+    } else if (side === 'SELL') {
+      realizedPnlUsdc = (price - avgEntryBefore) * amount;
+      p.realizedPnlUsdc = (p.realizedPnlUsdc || 0) + realizedPnlUsdc;
+      if (p.sol <= 1e-9) p.avgEntryPrice = 0;
     }
 
     savePortfolio(p);
@@ -171,6 +179,7 @@ export async function executeRealTrade({ side, amount, price, signalId, walletKe
       side,
       amount,
       price,
+      realizedPnlUsdc,
       txSignature: swapResult.txSignature,
       post: { ...p },
       executedAt: NOW(),
