@@ -53,6 +53,7 @@ export function paramsFromCfg(cfg = CFG) {
     bullRegimeThreshold: cfg.bullRegimeThreshold, bullDipScale: cfg.bullDipScale,
     regimeSizeEnabled: cfg.regimeSizeEnabled, regimeSizeUpMult: cfg.regimeSizeUpMult,
     regimeSizeDownMult: cfg.regimeSizeDownMult, regimeSizeHighRsi: cfg.regimeSizeHighRsi,
+    bullBuyPctOfUsdc: cfg.bullBuyPctOfUsdc,
   };
 }
 
@@ -149,7 +150,19 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
     if (upTrend && rsiVal != null && rsiVal < P.rsiOversold) regimeSizeMult = P.regimeSizeUpMult;
     else if (downTrend || (rsiVal != null && rsiVal > P.regimeSizeHighRsi)) regimeSizeMult = P.regimeSizeDownMult;
   }
-  const scaledBuy = Math.min(botState.buyUsdc * buyMult * regimeSizeMult, balances.usdc);
+  // Proportional sizing: BULL bot deploys % of USDC in confirmed uptrend (wealth-builder mode).
+  // BEAR bot always uses fixed sizing (capital-preservation mode).
+  // Requires STRONG bull regime: emaFast must exceed emaSlow by > bullRegimeThreshold%.
+  let scaledBuy = botState.buyUsdc * buyMult * regimeSizeMult;
+  if (P.bullBuyPctOfUsdc > 0 && botState.name === 'BULL' &&
+      emaFast != null && emaSlow != null && emaFast > emaSlow) {
+    const regimeStrengthPct = (emaFast - emaSlow) / emaSlow * 100;
+    if (regimeStrengthPct >= 7.0) { // any confirmed uptrend (ema gap > 0.5%)
+      const pctBuy = balances.usdc * P.bullBuyPctOfUsdc;
+      scaledBuy = Math.max(scaledBuy, pctBuy);
+    }
+  }
+    scaledBuy = Math.min(scaledBuy, balances.usdc); // never exceed available USDC // cap at 25% per trade
 
   let signal = null;
   if (eligible && anchorCdOk && price <= buyTrigger && scaledBuy >= P.minTradeUsdc && buyAllowed) {

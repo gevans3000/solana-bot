@@ -112,7 +112,18 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
     if (upTrend && rsiVal != null && rsiVal < CFG.rsiOversold) sizeMult = CFG.regimeSizeUpMult;
     else if (downTrend || (rsiVal != null && rsiVal > CFG.regimeSizeHighRsi)) sizeMult = CFG.regimeSizeDownMult;
   }
-  const sizedBuyUsdc = Math.min(buyUsdc * sizeMult, balances.usdc);
+  // Proportional sizing: BULL bot deploys % of USDC in confirmed strong bull regime.
+  // BEAR bot keeps fixed sizing (capital-preservation). Requires regime strength >= threshold.
+  let sizedBuyUsdc = buyUsdc * sizeMult;
+  if (CFG.bullBuyPctOfUsdc > 0 && bot === 'BULL' &&
+      state.emaFast != null && state.emaSlow != null && state.emaFast > state.emaSlow) {
+    const regimeStrengthPct = (state.emaFast - state.emaSlow) / state.emaSlow * 100;
+    if (regimeStrengthPct >= 7.0) { // any confirmed uptrend
+      const pctBuy = balances.usdc * CFG.bullBuyPctOfUsdc;
+      sizedBuyUsdc = Math.max(sizedBuyUsdc, pctBuy);
+    }
+  }
+    sizedBuyUsdc = Math.min(sizedBuyUsdc, balances.usdc); // never exceed available USDC
 
   if (eligible && anchorCdOk && price <= buyTrigger && balances.usdc >= sizedBuyUsdc && sizedBuyUsdc >= CFG.minTradeUsdc && buyAllowed) {
     signal = {

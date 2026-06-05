@@ -131,6 +131,7 @@ export const CFG = {
   alertOnTrade:    bool('ALERT_ON_TRADE', false),
   alertOnError:    bool('ALERT_ON_ERROR', false),
   alertOnBreaker:  bool('ALERT_ON_BREAKER', true),
+  bullBuyPctOfUsdc: Math.max(0, num('BULL_BUY_PCT_OF_USDC', 0.15)),
   maxSlippageBps:  Math.max(10, num('MAX_SLIPPAGE_BPS', 100)),
   priorityFeeLamports: Math.max(0, num('PRIORITY_FEE_LAMPORTS', 5000)),
   realMaxTradesPerDay: Math.max(1, num('REAL_MAX_TRADES_PER_DAY', 5)),
