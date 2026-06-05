@@ -159,7 +159,78 @@ npm run ui          # local one-click browser UI
 npm run smoke       # quick one-pass validation
 npm run shadow      # run with SHADOW_MODE=1 (fetch Jupiter quotes before trading)
 npm run reconcile   # compare portfolio state vs on-chain balances
+npm run backtest         # replay on all files in backtest/data/
+npm run backtest:sweep   # grid-search dip/rip/edge/ema params
+npm run backtest:wf      # walk-forward (70% train / 30% test)
+npm run backtest:fetch   # fetch fresh historical data from Coinbase
 ```
+
+---
+
+## Backtesting
+
+The backtester replays the **exact same logic** used at runtime — same signal generation, same executor gates, same simulated fills — against historical OHLCV data. No separate codebase to drift from production.
+
+### Running the backtest
+
+```bash
+# Run on all files in backtest/data/ (uses your .env params)
+npm run backtest
+
+# Run on a specific file
+node src/backtest.mjs --data backtest/data/sol-usd-1d-full.json
+
+# Grid-search dip/rip/edge/ema params on the longest dataset
+npm run backtest:sweep
+
+# Walk-forward: optimize on first 70%, validate on last 30%
+npm run backtest:wf
+
+# Fetch fresh historical data (run from your machine, not sandbox)
+npm run backtest:fetch
+
+# Machine-readable JSON output
+node src/backtest.mjs --json
+```
+
+### Data files
+
+Historical data lives in `backtest/data/` as JSON arrays of Coinbase candle format:
+`[epochSeconds, low, high, open, close, volume]`
+
+Seed datasets included:
+- `sol-usd-1d.json` — 310 days daily (bear market, ~mid-2024 to mid-2025)
+- `sol-usd-6h.json` — 87 days 6-hour
+- `sol-usd-1m.json` — ~5 hours 1-minute
+
+Run `npm run backtest:fetch` to add full multi-year history and bull-market data:
+- `sol-usd-1d-full.json` — daily candles Jan 2021 to today (all market regimes)
+- `sol-usd-1d-bull.json` — bull run Oct 2023–Apr 2024 (SOL ~$20 to $200)
+- `sol-usd-6h-recent.json` — recent 90 days including latest crash
+- `sol-usd-6h-bull.json` — bull run at 6-hour granularity
+
+### Backtest features
+
+**EMA trend filter** (`TREND_FILTER_ENABLED=1`, default ON): only allows BUY signals when the EMA(N) is rising. Prevents buying into sustained downtrends. Configurable via `EMA_PERIOD` (default 20).
+
+**ATR dynamic thresholds** (`USE_ATR_THRESHOLDS=0`, default OFF): replaces fixed dip/rip% with ATR(14)-scaled values that self-calibrate to current market volatility. Enable with `USE_ATR_THRESHOLDS=1`.
+
+**Inventory cap** (`MAX_SOL_ALLOCATION_PCT=60`): blocks new BUYs when SOL already represents ≥60% of portfolio. Prevents blowing all USDC into SOL in a downtrend.
+
+**Walk-forward validation**: the `--walk-forward` flag splits the series 70/30, optimizes on train, reports out-of-sample performance on held-out test set to catch overfitting.
+
+**Realistic fees**: default `SIM_FEE_BPS=30` (0.3%) reflects real Jupiter fees on small trades. Previously was 10bps which understated costs.
+
+### Parameter sweep findings (bear-market daily data, 310 days)
+
+Best configs consistently have **wide dip trigger (2.0%), tight rip (0.15%), short EMA (10)**. Walk-forward out-of-sample result: −0.12% return, −0.56% vs hold on the test period (held-out 93 days). These findings are from a bear market only — run `npm run backtest:fetch` then `npm run backtest:sweep` on `sol-usd-1d-full.json` to validate across all market regimes.
+
+| Config | Trades | Return | vs Hold | Max DD |
+|--------|--------|--------|---------|--------|
+| dip=2.0% rip=0.15% ema=10 (recommended) | 78 | −10.5% | **+25.8%** | 23.0% |
+| dip=0.15% rip=0.15% ema=20 (current .env) | 85 | −17.6% | +18.8% | 29.4% |
+
+**Bottom line**: wider dip triggers (2.0%) with a faster EMA (period 10) significantly outperform tight triggers in bear markets. The strategy still loses money in absolute terms during a crash, but preserves significantly more capital than holding.
 
 ---
 

@@ -13,7 +13,13 @@
     "ui": "node src/ui-server.mjs",
     "smoke": "node src/smoke.mjs",
     "shadow": "SHADOW_MODE=1 node src/all.mjs",
-    "reconcile": "node src/reconcile.mjs"
+    "reconcile": "node src/reconcile.mjs",
+    "backtest": "node src/backtest.mjs",
+    "backtest:sweep": "node src/backtest.mjs --sweep",
+    "backtest:wf": "node src/backtest.mjs --sweep --walk-forward",
+    "backtest:fetch": "node backtest/fetch-data.mjs",
+    "test": "node src/selftest.mjs",
+    "preflight": "node src/preflight.mjs"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.14",

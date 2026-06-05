@@ -4,3 +4,9 @@ node_modules/
 .env
 .DS_Store
 *.log
+# scratch / backups (excluded from version control)
+.env.backup-*
+cb_probe.mjs
+exp_tmp.mjs
+xtest.mjs
+src/_synctest.txt
