@@ -113,6 +113,9 @@ async function tick() {
       logJsonl('executor.jsonl', { type: 'circuit_breaker', reason: 'daily_loss_limit',
         t: NOW(), realizedLossTodayUsdc: +(state.realizedLossTodayUsdc || 0).toFixed(4),
         limitUsdc: CFG.dailyLossLimitUsdc, day: state.day });
+      if (CFG.alertOnBreaker) await sendAlert({ type: 'circuit_breaker',
+        message: `Daily loss limit hit: -$${+(state.realizedLossTodayUsdc||0).toFixed(2)} (limit $${CFG.dailyLossLimitUsdc})`,
+        data: { day: state.day } });
       saveJson('state-exec.json', state);
       return;
     }

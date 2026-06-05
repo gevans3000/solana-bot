@@ -1,5 +1,5 @@
 import { VersionedTransaction } from '@solana/web3.js';
-import { CFG, NOW, rpcRequest } from './common.mjs';
+import { CFG, NOW, rpcRequest, logJsonl } from './common.mjs';
 
 export async function executeJupiterSwap({ side, amount, walletKeypair }) {
   const httpTimeout = 15000;
@@ -20,7 +20,8 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
           inputMint: side === 'BUY' ? CFG.usdcMint : CFG.solMint,
           outputMint: side === 'BUY' ? CFG.solMint : CFG.usdcMint,
           amount: side === 'BUY' ? Math.floor(amount * 1e6) : Math.floor(amount * 1e9),
-          slippageBps: 50,
+          slippageBps: CFG.maxSlippageBps,
+          prioritizationFeeLamports: CFG.priorityFeeLamports,
         }),
         signal: controller.signal,
       });
@@ -119,6 +120,13 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
           }
           if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') {
             confirmed = true;
+            // Log slippage: backtest assumes 8bps; warn if we're using more
+            const slippageUsed = CFG.maxSlippageBps;
+            if (slippageUsed > 8) {
+              logJsonl('executor.jsonl', { type: 'slippage_note', t: NOW(),
+                slippageBpsUsed: slippageUsed, backtestAssumptionBps: 8,
+                note: slippageUsed > 50 ? 'HIGH: live slippage exceeds backtest by 6x+' : 'within 6x backtest' });
+            }
             break;
           }
         }

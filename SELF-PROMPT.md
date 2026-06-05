@@ -5,10 +5,10 @@
 # evolution is visible (`git log -p SELF-PROMPT.md`).
 
 ## Focus for the next run (do this first)
-- Backlog item #1: recommend/plan the **paid RPC endpoint** swap (Helius/Triton/QuickNode).
-  Public RPC is the top reliability risk; until it's done, errors are expected. Do NOT change
-  RPC_URL yourself — surface it for George with the exact 1-line change.
-- Confirm `npm run test:all` is green and bear >= 9.0% before anything else.
+- Confirm `npm run test:all` green and bear >= 9.0% before anything else.
+- Backlog item #3: Run shadow session (`npm run shadow`), review logs/shadow.jsonl,
+  then STOP and ask George before flipping DRY_RUN=0 for any live trade.
+- Backlog item #4: Set up reconciliation cron (`npm run reconcile`) as a scheduled task.
 
 ## Running lessons (append; never delete — this is our long-term memory)
 - 2026-06-05: Edit/Write tool truncates src/*.mjs on this mount — always edit from shell + node --check.
@@ -16,13 +16,16 @@
 - 2026-06-05: "RSI>60 => smaller buys" fought the momentum overlay; kept disabled (REGIME_SIZE_HIGH_RSI=100).
 - 2026-06-05: Real-mode realized PnL was untracked => circuit breaker was blind live. Fixed.
 - 2026-06-05: In-sample sweeps overfit; always cross-validate across ALL datasets + protect bear floor.
+- 2026-06-05: .env is NOT in git — never open it with python open(path,'w') before reading; always read first, then write. Truncation destroyed the file once.
+- 2026-06-05: Cowork sessions connect to C:\Users\lovel\Claude\Projects\Solana Bot (not Desktop). Bot files are synced there. Canonical git repo stays at C:\Users\lovel\Desktop\solana-bot; George commits from there.
+- 2026-06-05: Always request_cowork_directory for Desktop\solana-bot at session start if doing shell edits; Projects folder auto-connects but Desktop has the live git.
 
 ## Backlog progress (update as items land)
-- [ ] 1. Paid RPC endpoint
-- [ ] 2. Jupiter max-slippage + priority-fee guard + slippage logging
-- [ ] 3. Shadow session, then one tiny watched live trade
-- [ ] 4. Reconciliation cron (npm run reconcile before/after sessions)
-- [ ] 5. Alert webhook for trades/errors/breaker
+- [x] 1. Paid RPC endpoint — documented in .env with Helius/QuickNode/Triton instructions; George swaps RPC_URL when ready (no code change needed)
+- [x] 2. Jupiter max-slippage + priority-fee guard — MAX_SLIPPAGE_BPS=100, PRIORITY_FEE_LAMPORTS=5000 in .env + wired into jupiter-swap.mjs; slippage logged to executor.jsonl on every confirmed swap
+- [x] 5. Alert webhook — alerts.mjs already existed; wired circuit-breaker alert (ALERT_ON_BREAKER=1 default on); ALERT_WEBHOOK_URL instructions in .env (Discord webhook)
+- [ ] 3. Shadow session, then one tiny watched live trade — run `npm run shadow`, review logs/shadow.jsonl, ask George before DRY_RUN=0
+- [ ] 4. Reconciliation cron (npm run reconcile before/after sessions) — consider scheduled task
 - [ ] 6. Refresh + widen backtest data and Monte-Carlo regimes
 
 ## How to rewrite this file at the end of a run
