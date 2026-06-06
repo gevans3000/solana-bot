@@ -15,6 +15,7 @@ import {
   safeReadJsonFile,
   loadPortfolio,
   circuitBreakerTripped,
+  effectiveMaxNotionalUsdc,
 } from './common.mjs';
 import { getBalances, executeTrade } from './portfolio.mjs';
 import { getSolUsdPrice } from './price-source.mjs';
@@ -278,7 +279,13 @@ async function tick() {
       return;
     }
 
-    const maxNotional = CFG.executionMode === 'real' ? CFG.realMaxNotionalUsdc : CFG.maxNotionalUsdc;
+    // Wealth-V4: per-trade cap via the shared pure helper (single source of truth, parity with
+    // backtest.mjs). REAL mode is NEVER widened — effectiveMaxNotionalUsdc enforces that invariant.
+    const _isReal = CFG.executionMode === 'real';
+    const _rg = _isReal ? {} : (safeReadJsonFile(fileInState('regime.json')) || {});
+    const _rs = (_rg.emaFast != null && _rg.emaSlow != null && _rg.emaSlow > 0)
+      ? ((_rg.emaFast - _rg.emaSlow) / _rg.emaSlow) * 100 : 0;
+    const maxNotional = effectiveMaxNotionalUsdc({ isReal: _isReal, regimeStrengthPct: _rs });
     const notionalUsdc = signal.side === 'BUY' ? signal.amount : signal.amount * price;
     if (notionalUsdc < CFG.minTradeUsdc) {
       logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'below min trade size', signal, notionalUsdc });
@@ -312,7 +319,9 @@ async function tick() {
       return;
     }
 
-    // Shadow mode: fetch quote and on-chain balances before execution
+    // Shadow / quote-aware net-edge gate (#3): fetch the real Jupiter quote and REFUSE to trade
+    // when the fill's price impact would erase the signal edge. This makes live friction part of
+    // the decision instead of a post-hoc log. Enable via SHADOW_MODE=1 (recommended before live).
     if (CFG.shadowMode && CFG.shadowQuoteOnTrade) {
       try {
         const walletAddress = CFG.executionMode === 'real' ? getWalletPublicKey() : 'SimulatedWallet';
@@ -325,13 +334,31 @@ async function tick() {
 
         const shadowBalances = CFG.executionMode === 'real' ? await getOnChainBalances(walletAddress) : null;
 
+        // Price impact in bps. Jupiter priceImpactPct is treated as a percent (*100). If it ever
+        // arrives as a fraction this only makes the gate MORE conservative, never falsely aggressive.
+        const pip = Number(shadowQuote && shadowQuote.priceImpactPct);
+        const priceImpactBps = Number.isFinite(pip) ? Math.abs(pip) * 100 : null;
+        const netEdgeBps = (priceImpactBps != null && Number.isFinite(signal.edgeBps))
+          ? signal.edgeBps - priceImpactBps : null;
+
         logJsonl('shadow.jsonl', {
           t: NOW(),
           type: 'pre_trade',
           signal,
           shadowQuote,
           shadowBalances,
+          priceImpactBps,
+          netEdgeBps,
         });
+
+        if (netEdgeBps != null && netEdgeBps < CFG.minNetEdgeBps) {
+          logJsonl('executor.jsonl', {
+            t: NOW(), type: 'skip', reason: 'net edge below floor after quote',
+            signal, priceImpactBps, netEdgeBps, minNetEdgeBps: CFG.minNetEdgeBps,
+          });
+          saveJson('state-exec.json', state);
+          return;
+        }
       } catch (error) {
         logJsonl('shadow.jsonl', {
           t: NOW(),

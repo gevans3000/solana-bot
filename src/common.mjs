@@ -27,8 +27,8 @@ loadEnvFile(ENV_PATH);
 loadEnvFile(EXAMPLE_ENV_PATH);
 
 export { ROOT };
-export const LOG_DIR   = path.join(ROOT, 'logs');
-export const STATE_DIR = path.join(ROOT, 'state');
+export const LOG_DIR   = process.env.SOLBOT_LOG_DIR   || path.join(ROOT, 'logs');
+export const STATE_DIR = process.env.SOLBOT_STATE_DIR || path.join(ROOT, 'state');
 export const NOW = () => new Date().toISOString();
 
 export function num(name, fallback) {
@@ -58,6 +58,7 @@ export const CFG = {
   maxTradesPerDay: Math.max(1,  num('MAX_TRADES_PER_DAY', 8)),
   staleSignalSec:  Math.max(10, num('STALE_SIGNAL_SEC', 180)),
   minExpectedEdgeBps: Math.max(0, num('MIN_EXPECTED_EDGE_BPS', 20)),
+  minNetEdgeBps:   num('MIN_NET_EDGE_BPS', 0),   // #3: refuse to trade when post-quote net edge (signal edge - price impact) falls below this (bps). 0 = block only negative net edge.
   minTradeUsdc:    Math.max(1,  num('MIN_TRADE_USDC', 10)),
   maxNotionalUsdc: Math.max(1,  num('MAX_NOTIONAL_USDC', 75)),
   dailyNotionalLimitUsdc: Math.max(1, num('DAILY_NOTIONAL_LIMIT_USDC', 400)),
@@ -92,6 +93,7 @@ export const CFG = {
   bullMinSolHold:   Math.max(0,   num('BULL_MIN_SOL_HOLD', 0)),    // Option B: core SOL floor held through the trend
   bullProportionalSells: bool('BULL_PROPORTIONAL_SELLS', false),       // Option A: rip-sell the amount last bought, not fixed sellSol
   bullStrongRegimePct: Math.max(0, num('BULL_STRONG_REGIME_PCT', 10)),  // regime-strength gate (%) above which the sell-side fixes activate
+  bullMaxNotionalUsdc: Math.max(1, num('BULL_MAX_NOTIONAL_USDC', 8)),   // Wealth-V4: per-trade notional cap allowed ONLY in strong bull (sim/dry/shadow); REAL mode stays capped at realMaxNotionalUsdc
   intrabarStops:   bool('INTRABAR_STOPS', true),
   anchorCooldownBars: Math.max(0, num('ANCHOR_COOLDOWN_BARS', 2)),
   botSpecializationEnabled: bool('BOT_SPECIALIZATION_ENABLED', true),
@@ -178,6 +180,17 @@ export function circuitBreakerTripped(realizedLossTodayUsdc, limit = CFG.dailyLo
   const cap  = Number(limit);
   if (!Number.isFinite(cap) || cap <= 0) return false; // 0/unset disables the breaker
   return loss >= cap;
+}
+
+// Single source of truth for the per-trade notional cap (Wealth-V4). Pure + testable.
+// SAFETY INVARIANT: in REAL execution the cap is ALWAYS realMaxNotionalUsdc — the strong-bull
+// widening (bullMaxNotionalUsdc) can NEVER apply to real money, regardless of regime strength.
+// Used by both executor.mjs (live) and backtest.mjs (sim) so the gate can't drift out of parity.
+export function effectiveMaxNotionalUsdc({ isReal, regimeStrengthPct, cfg = CFG }) {
+  if (isReal) return cfg.realMaxNotionalUsdc;            // real money: never widened, full stop
+  const base = cfg.maxNotionalUsdc;
+  const strongBull = Number(regimeStrengthPct) >= cfg.bullStrongRegimePct;
+  return strongBull ? Math.max(base, cfg.bullMaxNotionalUsdc) : base;
 }
 
 export function ensureDirs() {
@@ -324,6 +337,10 @@ export async function withLock(lockName, fn) {
   ensureDirs();
   const lockPath = fileInState(lockName);
   const staleMs  = Math.max(CFG.loopSec * 4000, 120000);
+  // Releasing the lock must never throw: on some filesystems (Windows AV / OneDrive sync /
+  // restricted mounts) unlink can fail with EPERM. A throw in finally would mask fn()'s result
+  // and crash the loop; instead we swallow it and let stale-detection reclaim the lock later.
+  const releaseLock = () => { try { fs.rmSync(lockPath, { force: true }); } catch { /* unlink blocked; stale-detection reclaims */ } };
   try {
     const fd = fs.openSync(lockPath, 'wx');
     fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, createdAt: NOW() }));
@@ -331,12 +348,15 @@ export async function withLock(lockName, fn) {
   } catch {
     if (fs.existsSync(lockPath)) {
       const ageMs = Date.now() - fs.statSync(lockPath).mtimeMs;
-      if (ageMs > staleMs) { fs.rmSync(lockPath, { force: true }); return withLock(lockName, fn); }
+      if (ageMs > staleMs) {
+        try { fs.rmSync(lockPath, { force: true }); } catch { return { locked: false }; }
+        return withLock(lockName, fn);
+      }
     }
     return { locked: false };
   }
   try { return await fn(); }
-  finally { fs.rmSync(lockPath, { force: true }); }
+  finally { releaseLock(); }
 }
 
 export async function fetchJson(url, options = {}) {

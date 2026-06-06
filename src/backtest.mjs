@@ -14,7 +14,7 @@ import fs    from 'node:fs';
 import path  from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { CFG } from './common.mjs';
+import { CFG, effectiveMaxNotionalUsdc } from './common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -56,6 +56,7 @@ export function paramsFromCfg(cfg = CFG) {
     bullBuyPctOfUsdc: cfg.bullBuyPctOfUsdc,
     bullTrailGivePct: cfg.bullTrailGivePct, bullMinSolHold: cfg.bullMinSolHold, bullProportionalSells: cfg.bullProportionalSells,
     bullStrongRegimePct: cfg.bullStrongRegimePct,
+    bullMaxNotionalUsdc: cfg.bullMaxNotionalUsdc,
   };
 }
 
@@ -159,7 +160,7 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
   if (P.bullBuyPctOfUsdc > 0 && botState.name === 'BULL' &&
       emaFast != null && emaSlow != null && emaFast > emaSlow) {
     const regimeStrengthPct = (emaFast - emaSlow) / emaSlow * 100;
-    if (regimeStrengthPct >= 7.0) { // any confirmed uptrend (ema gap > 0.5%)
+    if (regimeStrengthPct >= P.bullRegimeThreshold) { // configurable bull gate (default 7.0)
       const pctBuy = balances.usdc * P.bullBuyPctOfUsdc;
       scaledBuy = Math.max(scaledBuy, pctBuy);
     }
@@ -388,7 +389,7 @@ export function runBacktest(series, P) {
       else if (exec.lastTradeWindow === Math.floor(nowMs/(P.decisionWindowSec*1000)))      blocked = 'one-per-window';
       else if (exec.lastSignalId === sig.signalId)                                         blocked = 'duplicate signal';
       else if (notional < P.minTradeUsdc)                                                  blocked = 'below min trade';
-      else if (notional > P.maxNotionalUsdc)                                               blocked = 'above max trade';
+      else if (notional > effectiveMaxNotionalUsdc({ isReal: false, regimeStrengthPct: regimeStrength, cfg: { realMaxNotionalUsdc: 0, maxNotionalUsdc: P.maxNotionalUsdc, bullStrongRegimePct: P.bullStrongRegimePct, bullMaxNotionalUsdc: P.bullMaxNotionalUsdc } })) blocked = 'above max trade'; // Wealth-V4: shared gated cap (parity w/ executor)
       else if (sig.side === 'BUY'  && port.usdc < sig.amount)                             blocked = 'insufficient USDC';
       else if (sig.side === 'SELL' && port.sol  < sig.amount + P.minSolReserve)           blocked = 'insufficient SOL';
       else if (sig.side === 'BUY' && (() => {

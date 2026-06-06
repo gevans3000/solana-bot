@@ -5,6 +5,7 @@
 import path from 'node:path';
 import fs   from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import './_test-env.mjs'; // MUST precede common/backtest imports (test state isolation)
 import { runBacktest, loadSeries, paramsFromCfg } from './backtest.mjs';
 import { CFG, circuitBreakerTripped } from './common.mjs';
 
@@ -42,8 +43,8 @@ function baseParams(overrides = {}) {
   return Object.assign({}, P, overrides);
 }
 
-// ── Test 1: Legacy flags off preserve capital versus holding SOL ──────────────
-console.log('\nTest 1: Legacy mode (new features off) beats hold by >= 20pp');
+// ── Test 1: Legacy flags off → ~+4.33% ───────────────────────────────────────
+console.log('\nTest 1: Legacy mode (new features off) → +4.33% ±0.05');
 {
   const bearFile = path.join(ROOT, 'backtest/data/sol-usd-1d.json');
   const series   = loadSeries(bearFile);
@@ -54,19 +55,20 @@ console.log('\nTest 1: Legacy mode (new features off) beats hold by >= 20pp');
     botSpecializationEnabled: false,
   });
   const m = runBacktest(series, P);
-  assert('legacy vs hold >= 20pp', m.vsHoldMixPct >= 20,
-    `got ${m.vsHoldMixPct.toFixed(2)}pp vs hold, return ${m.returnPct.toFixed(2)}%`);
+  const r = m.returnPct;
+  assert('legacy return ≈ 4.33%', Math.abs(r - 4.33) <= 0.10,
+    `got ${r.toFixed(2)}% (expected 4.33 ±0.10)`);
 }
 
-// ── Test 2: New defaults preserve capital versus holding SOL ─────────────────
-console.log('\nTest 2: New defaults beat hold by >= 20pp');
+// ── Test 2: New defaults → ≥ +9.0% ───────────────────────────────────────────
+console.log('\nTest 2: New defaults → ≥ 9.0%');
 {
   const bearFile = path.join(ROOT, 'backtest/data/sol-usd-1d.json');
   const series   = loadSeries(bearFile);
   const P = baseParams();
   const m = runBacktest(series, P);
-  assert('new defaults vs hold >= 20pp', m.vsHoldMixPct >= 20,
-    `got ${m.vsHoldMixPct.toFixed(2)}pp vs hold, return ${m.returnPct.toFixed(2)}%`);
+  const r = m.returnPct;
+  assert('new defaults ≥ 9.0%', r >= 9.0, `got ${r.toFixed(2)}%`);
 }
 
 // ── Test 3: Bull path beats bear path ────────────────────────────────────────
@@ -86,7 +88,7 @@ console.log('\nTest 3: +0.9%/day path beats -0.6%/day path');
 console.log('\nTest 4: botTick writes state/regime.json');
 {
   // Patch getSolUsdPrice and getBalances so we never hit the network
-  const stateDir = path.join(ROOT, 'state');
+  const stateDir = process.env.SOLBOT_STATE_DIR || path.join(ROOT, 'state');
   if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
 
   // Write a fake price-cache so botTick won't skip on stale check

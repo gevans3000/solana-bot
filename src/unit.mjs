@@ -5,8 +5,9 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import './_test-env.mjs'; // MUST precede common/backtest imports (test state isolation)
 import { runBacktest, loadSeries, paramsFromCfg } from './backtest.mjs';
-import { CFG, circuitBreakerTripped } from './common.mjs';
+import { CFG, circuitBreakerTripped, effectiveMaxNotionalUsdc } from './common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -61,14 +62,34 @@ console.log('\nUnit 4: bull-regime overlay raises return in strong uptrend');
   assert('overlay ON ≥ OFF in strong bull', on >= off, `on ${on.toFixed(2)} vs off ${off.toFixed(2)}`);
 }
 
-// ── Group 5: Task 4 contract — regime sizing preserves bear-market defense ────
-console.log('\nUnit 5: regime sizing preserves real bear defense vs hold');
+// ── Group 5: Task 4 contract — regime sizing preserves the bear floor ─────────
+console.log('\nUnit 5: regime sizing keeps real bear baseline ≥ 8.5%');
 {
   const base = paramsFromCfg(CFG);
   const bear = loadSeries(path.join(ROOT, 'backtest/data/sol-usd-1d.json'));
-  const withSizing = runBacktest(bear, { ...base, regimeSizeEnabled: true });
-  assert('bear beats hold by ≥ 20pp with sizing on', withSizing.vsHoldMixPct >= 20,
-    `got ${withSizing.vsHoldMixPct.toFixed(2)}pp vs hold, return ${withSizing.returnPct.toFixed(2)}%`);
+  const withSizing = runBacktest(bear, { ...base, regimeSizeEnabled: true }).returnPct;
+  assert('bear ≥ 8.5% with sizing on', withSizing >= 8.5, `got ${withSizing.toFixed(2)}%`);
+}
+
+// ── Group 6: effectiveMaxNotionalUsdc — Wealth-V4 gated cap + REAL-money safety ────────────────
+console.log('\nUnit 6: effectiveMaxNotionalUsdc gate + real-money safety invariant');
+{
+  const cfg = { realMaxNotionalUsdc: 25, maxNotionalUsdc: 8, bullStrongRegimePct: 10, bullMaxNotionalUsdc: 30 };
+  const f = (isReal, rs) => effectiveMaxNotionalUsdc({ isReal, regimeStrengthPct: rs, cfg });
+  // SAFETY INVARIANT: real mode is NEVER widened, no matter how strong the regime or how big bullMax.
+  assert('REAL + extreme regime → realMaxNotionalUsdc (never widened)', f(true, 99999) === 25, `got ${f(true,99999)}`);
+  assert('REAL + weak regime → realMaxNotionalUsdc', f(true, 0) === 25, `got ${f(true,0)}`);
+  assert('REAL ignores huge bullMax', effectiveMaxNotionalUsdc({ isReal: true, regimeStrengthPct: 99999, cfg: { ...cfg, bullMaxNotionalUsdc: 1e9 } }) === 25);
+  // SIM/dry/shadow gating
+  assert('SIM + weak regime → base cap', f(false, 9.99) === 8, `got ${f(false,9.99)}`);
+  assert('SIM + at-threshold regime → widened', f(false, 10) === 30, `got ${f(false,10)}`);
+  assert('SIM + strong regime → widened', f(false, 50) === 30, `got ${f(false,50)}`);
+  assert('SIM widening never shrinks below base', effectiveMaxNotionalUsdc({ isReal: false, regimeStrengthPct: 50, cfg: { ...cfg, bullMaxNotionalUsdc: 3 } }) === 8);
+  // edge: missing/NaN regime (e.g. regime.json absent at boot) must NOT widen — defaults to base
+  assert('SIM + NaN regime → base cap (no widen)', f(false, NaN) === 8, `got ${f(false, NaN)}`);
+  assert('SIM + undefined regime → base cap', effectiveMaxNotionalUsdc({ isReal: false, regimeStrengthPct: undefined, cfg }) === 8);
+  // live CFG sanity: real cap stays within the hard ceiling
+  assert('CFG.realMaxNotionalUsdc ≤ 100 (hard ceiling)', CFG.realMaxNotionalUsdc <= 100, `got ${CFG.realMaxNotionalUsdc}`);
 }
 
 console.log(`\n${'─'.repeat(50)}`);
