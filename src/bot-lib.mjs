@@ -135,16 +135,24 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
       rsi: rsiVal != null ? +rsiVal.toFixed(1) : null,
       regimeOk, buyAllowed,
     };
-  } else if (eligible && balances.sol >= sellSol + CFG.minSolReserve &&
-      (price >= sellTrigger || (rsiOverbought && price > state.anchor))) {
+  } else {
+    // Option A parity: BULL rips sell the SOL amount last bought (symmetry) in strong bull.
+    const strongUp = state.emaFast != null && state.emaSlow != null && state.emaSlow > 0
+      && ((state.emaFast - state.emaSlow) / state.emaSlow) * 100 >= CFG.bullStrongRegimePct;
+    const propSell = (CFG.bullProportionalSells && bot === 'BULL' && strongUp && (state.lastBuyAmountSol || 0) > 0)
+      ? state.lastBuyAmountSol : sellSol;
+    const ripSellAmt = +Math.min(propSell, balances.sol - CFG.minSolReserve).toFixed(6);
+    if (eligible && ripSellAmt >= sellSol && balances.sol >= ripSellAmt + CFG.minSolReserve &&
+        (price >= sellTrigger || (rsiOverbought && price > state.anchor))) {
     signal = {
       t: NOW(), bot, side: 'SELL',
-      amount: sellSol, amountUnit: 'SOL', price, anchor: state.anchor,
+      amount: ripSellAmt, amountUnit: 'SOL', price, anchor: state.anchor,
       edgeBps: Math.round(((price - state.anchor) / state.anchor) * 10000),
       reason: rsiOverbought && price > state.anchor ? `RSI overbought (${rsiVal?.toFixed(1)})` : `price>=anchor*(1+${ripPct}%)`,
       emaFast: +state.emaFast.toFixed(4), emaSlow: +state.emaSlow.toFixed(4),
       rsi: rsiVal != null ? +rsiVal.toFixed(1) : null,
     };
+    }
   }
 
   logJsonl(`${bot.toLowerCase()}.jsonl`, {
@@ -157,6 +165,7 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
   });
 
   if (signal) {
+    if (signal.side === 'BUY') state.lastBuyAmountSol = signal.amount / price;
     signal.signalId = makeSignalId(signal);
     logJsonl('signals.jsonl', signal);
     state.lastSignalAt = NOW();

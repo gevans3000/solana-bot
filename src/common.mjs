@@ -87,6 +87,11 @@ export const CFG = {
   trailInUptrend:  bool('TRAIL_IN_UPTREND', true),
   trailArmPct:     Math.max(0.5, num('TRAIL_ARM_PCT', 2.0)),
   trailGivePct:    Math.max(0.2, num('TRAIL_GIVE_PCT', 10)),
+  // Wealth-V2 sell-side fixes (gated on strong bull regime, regimeStrengthPct >= 7.0)
+  bullTrailGivePct: Math.max(0.2, num('BULL_TRAIL_GIVE_PCT', 25)),   // Option C: wider trailing give-back in strong bull
+  bullMinSolHold:   Math.max(0,   num('BULL_MIN_SOL_HOLD', 0)),    // Option B: core SOL floor held through the trend
+  bullProportionalSells: bool('BULL_PROPORTIONAL_SELLS', false),       // Option A: rip-sell the amount last bought, not fixed sellSol
+  bullStrongRegimePct: Math.max(0, num('BULL_STRONG_REGIME_PCT', 10)),  // regime-strength gate (%) above which the sell-side fixes activate
   intrabarStops:   bool('INTRABAR_STOPS', true),
   anchorCooldownBars: Math.max(0, num('ANCHOR_COOLDOWN_BARS', 2)),
   botSpecializationEnabled: bool('BOT_SPECIALIZATION_ENABLED', true),

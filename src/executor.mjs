@@ -146,10 +146,14 @@ async function tick() {
           ? ((state.peakSinceEntry - price) / state.peakSinceEntry) * 100 : 0;
         const regime = safeReadJsonFile(fileInState('regime.json')) || {};
         const regimeUp = regime.emaFast != null && regime.emaSlow != null && regime.emaFast > regime.emaSlow;
+        // Option C parity: widen the trailing give-back in a strong confirmed bull.
+        const regimeStrengthPct = (regime.emaFast != null && regime.emaSlow != null && regime.emaSlow > 0)
+          ? ((regime.emaFast - regime.emaSlow) / regime.emaSlow) * 100 : 0;
+        const effTrailGive = regimeStrengthPct >= CFG.bullStrongRegimePct ? Math.max(CFG.trailGivePct, CFG.bullTrailGivePct) : CFG.trailGivePct;
 
         let exit = false, kind = 'profit_target';
         if (CFG.trailInUptrend && regimeUp) {
-          if (gainPct >= CFG.trailArmPct && giveBackPct >= CFG.trailGivePct) { exit = true; kind = 'trail_exit'; }
+          if (gainPct >= CFG.trailArmPct && giveBackPct >= effTrailGive) { exit = true; kind = 'trail_exit'; }
         } else if (gainPct >= CFG.profitTargetPct) {
           exit = true;
         }
@@ -158,7 +162,10 @@ async function tick() {
           logJsonl('executor.jsonl', { t: NOW(), type: kind, price, avgEntry: portfolio.avgEntryPrice, gainPct: +gainPct.toFixed(2), giveBackPct: +giveBackPct.toFixed(2), regimeUp, peak: state.peakSinceEntry });
           try {
             const walletKeypair = CFG.executionMode === 'real' ? loadKeypair() : null;
-            const sellAmt = +(balances.sol - CFG.minSolReserve).toFixed(6);
+            // Option B parity: keep a core SOL position in a strong confirmed bull.
+            const holdFloor = (regimeStrengthPct >= CFG.bullStrongRegimePct && CFG.bullMinSolHold > 0)
+              ? Math.max(CFG.minSolReserve, CFG.bullMinSolHold) : CFG.minSolReserve;
+            const sellAmt = +(balances.sol - holdFloor).toFixed(6);
             if (sellAmt > 0) {
               const ptExec = await executeTrade({ side: 'SELL', amount: sellAmt, price, signalId: `pt-${Date.now()}`, walletKeypair });
               recordRealizedLoss(state, ptExec);

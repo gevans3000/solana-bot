@@ -54,6 +54,8 @@ export function paramsFromCfg(cfg = CFG) {
     regimeSizeEnabled: cfg.regimeSizeEnabled, regimeSizeUpMult: cfg.regimeSizeUpMult,
     regimeSizeDownMult: cfg.regimeSizeDownMult, regimeSizeHighRsi: cfg.regimeSizeHighRsi,
     bullBuyPctOfUsdc: cfg.bullBuyPctOfUsdc,
+    bullTrailGivePct: cfg.bullTrailGivePct, bullMinSolHold: cfg.bullMinSolHold, bullProportionalSells: cfg.bullProportionalSells,
+    bullStrongRegimePct: cfg.bullStrongRegimePct,
   };
 }
 
@@ -171,10 +173,19 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
       edgeBps: Math.round(((botState.anchor - price) / botState.anchor) * 10000),
       rsi: rsiVal != null ? +rsiVal.toFixed(1) : null,
       buyMult: +buyMult.toFixed(2) };
-  } else if (eligible && balances.sol >= botState.sellSol + botState.minSolReserve &&
+  } else if (eligible &&
+      (() => {
+        // Option A: BULL rips sell the SOL amount last bought (symmetry), not a fixed 0.01.
+        const strongUp = emaFast != null && emaSlow != null && emaSlow > 0
+          && ((emaFast - emaSlow) / emaSlow) * 100 >= P.bullStrongRegimePct;
+        const propSell = P.bullProportionalSells && botState.name === 'BULL' && strongUp
+          && botState.lastBuyAmountSol > 0 ? botState.lastBuyAmountSol : botState.sellSol;
+        botState._ripSellAmt = +Math.min(propSell, balances.sol - botState.minSolReserve).toFixed(6);
+        return botState._ripSellAmt >= botState.sellSol && balances.sol >= botState._ripSellAmt + botState.minSolReserve;
+      })() &&
       (price >= sellTrigger || (rsiOverbought && price > botState.anchor))) {
     signal = { t: new Date(nowMs).toISOString(), bot: botState.name, side: 'SELL',
-      amount: botState.sellSol, price, anchor: botState.anchor,
+      amount: botState._ripSellAmt, price, anchor: botState.anchor,
       edgeBps: Math.round(((price - botState.anchor) / botState.anchor) * 10000),
       rsi: rsiVal != null ? +rsiVal.toFixed(1) : null };
   }
@@ -182,7 +193,7 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
     signal.signalId = makeSignalId(signal);
     botState.lastSignalAt = nowMs;
     botState.anchor = price;
-    if (signal.side === 'BUY') botState.lastBuyBar = bar;
+    if (signal.side === 'BUY') { botState.lastBuyBar = bar; botState.lastBuyAmountSol = signal.amount / price; }
   }
   return signal;
 }
@@ -298,18 +309,26 @@ export function runBacktest(series, P) {
         ? ((port.peakSinceEntry - price) / port.peakSinceEntry) * 100 : 0;
       const regimeUp = emaFast != null && emaSlow != null && emaFast > emaSlow;
 
+      // Option C: in a strong confirmed bull (regimeStrength >= 7.0) widen the trailing
+      // give-back so winners run much further before the whole-position exit fires.
+      const strongBull = regimeStrength >= P.bullStrongRegimePct;
+      const effTrailGive = strongBull ? Math.max(P.trailGivePct, P.bullTrailGivePct) : P.trailGivePct;
       let exitWhole = false;
       if (P.trailInUptrend && regimeUp) {
         // Confirmed uptrend: arm once the close is up >= trailArmPct, then let it run
-        // and exit only when the close gives back trailGivePct from the peak.
-        if (gainPct >= P.trailArmPct && giveBackPct >= P.trailGivePct) exitWhole = true;
+        // and exit only when the close gives back effTrailGive from the peak.
+        if (gainPct >= P.trailArmPct && giveBackPct >= effTrailGive) exitWhole = true;
       } else if (gainPct >= P.profitTargetPct) {
         // Chop/downtrend: hard target on the close (the proven champion behavior).
         exitWhole = true;
       }
 
       if (exitWhole) {
-        const sellAmt = +(port.sol - P.minSolReserve).toFixed(6);
+        // Option B: in a strong confirmed bull, keep a core SOL position riding the trend
+        // (never sell below bullMinSolHold). Stop-loss below is unaffected (full protective exit).
+        const holdFloor = (strongBull && P.bullMinSolHold > 0)
+          ? Math.max(P.minSolReserve, P.bullMinSolHold) : P.minSolReserve;
+        const sellAmt = +(port.sol - holdFloor).toFixed(6);
         if (sellAmt > 0) {
           const res = fill(port, 'SELL', sellAmt, price, P);
           if (res) {
