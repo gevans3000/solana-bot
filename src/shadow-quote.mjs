@@ -9,7 +9,7 @@ export async function getJupiterQuote({ side, amountUsdc, amountSol, walletAddre
     inputMint: side === 'BUY' ? CFG.usdcMint : CFG.solMint,
     outputMint: side === 'BUY' ? CFG.solMint : CFG.usdcMint,
     amount: side === 'BUY' ? Math.floor(amountUsdc * 1e6) : Math.floor(amountSol * 1e9),
-    slippageBps: 50,
+    slippageBps: CFG.maxSlippageBps,  // was hardcoded 50; use the configured live cap
   };
 
   try {

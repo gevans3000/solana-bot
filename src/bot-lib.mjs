@@ -118,7 +118,7 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
   if (CFG.bullBuyPctOfUsdc > 0 && bot === 'BULL' &&
       state.emaFast != null && state.emaSlow != null && state.emaFast > state.emaSlow) {
     const regimeStrengthPct = (state.emaFast - state.emaSlow) / state.emaSlow * 100;
-    if (regimeStrengthPct >= CFG.bullRegimeThreshold) { // configurable bull gate (default 7.0)
+    if (regimeStrengthPct >= CFG.bullRegimeThreshold) { // configurable bull gate (CFG.bullRegimeThreshold)
       const pctBuy = balances.usdc * CFG.bullBuyPctOfUsdc;
       sizedBuyUsdc = Math.max(sizedBuyUsdc, pctBuy);
     }

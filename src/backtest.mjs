@@ -160,7 +160,7 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
   if (P.bullBuyPctOfUsdc > 0 && botState.name === 'BULL' &&
       emaFast != null && emaSlow != null && emaFast > emaSlow) {
     const regimeStrengthPct = (emaFast - emaSlow) / emaSlow * 100;
-    if (regimeStrengthPct >= P.bullRegimeThreshold) { // configurable bull gate (default 7.0)
+    if (regimeStrengthPct >= P.bullRegimeThreshold) { // configurable bull gate (CFG.bullRegimeThreshold)
       const pctBuy = balances.usdc * P.bullBuyPctOfUsdc;
       scaledBuy = Math.max(scaledBuy, pctBuy);
     }
@@ -310,7 +310,7 @@ export function runBacktest(series, P) {
         ? ((port.peakSinceEntry - price) / port.peakSinceEntry) * 100 : 0;
       const regimeUp = emaFast != null && emaSlow != null && emaFast > emaSlow;
 
-      // Option C: in a strong confirmed bull (regimeStrength >= 7.0) widen the trailing
+      // Option C: in a strong confirmed bull (regimeStrength >= bullStrongRegimePct) widen the trailing
       // give-back so winners run much further before the whole-position exit fires.
       const strongBull = regimeStrength >= P.bullStrongRegimePct;
       const effTrailGive = strongBull ? Math.max(P.trailGivePct, P.bullTrailGivePct) : P.trailGivePct;

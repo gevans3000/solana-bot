@@ -319,10 +319,13 @@ async function tick() {
       return;
     }
 
-    // Shadow / quote-aware net-edge gate (#3): fetch the real Jupiter quote and REFUSE to trade
-    // when the fill's price impact would erase the signal edge. This makes live friction part of
-    // the decision instead of a post-hoc log. Enable via SHADOW_MODE=1 (recommended before live).
-    if (CFG.shadowMode && CFG.shadowQuoteOnTrade) {
+    // Quote-aware net-edge gate (#3): fetch the real Jupiter quote and REFUSE to trade when the
+    // fill's price impact would erase the signal edge. Active whenever SHADOW_QUOTE_ON_TRADE=1 OR
+    // we are in REAL execution (real money always gets quote protection). In real mode a failed/
+    // missing quote FAILS CLOSED (skips the trade); in dry/shadow a quote error is logged and the
+    // sim proceeds so transient quote outages don't stall validation.
+    const _quoteGateActive = CFG.shadowQuoteOnTrade || CFG.executionMode === 'real';
+    if (_quoteGateActive) {
       try {
         const walletAddress = CFG.executionMode === 'real' ? getWalletPublicKey() : 'SimulatedWallet';
         const shadowQuote = await getJupiterQuote({
@@ -333,6 +336,11 @@ async function tick() {
         });
 
         const shadowBalances = CFG.executionMode === 'real' ? await getOnChainBalances(walletAddress) : null;
+        if (shadowQuote && shadowQuote.error && CFG.executionMode === 'real') { // real money: bad quote => do not trade
+          logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'quote error (failing closed)', signal, error: shadowQuote.error });
+          saveJson('state-exec.json', state);
+          return;
+        }
 
         // Price impact in bps. Jupiter priceImpactPct is treated as a percent (*100). If it ever
         // arrives as a fraction this only makes the gate MORE conservative, never falsely aggressive.
@@ -360,12 +368,12 @@ async function tick() {
           return;
         }
       } catch (error) {
-        logJsonl('shadow.jsonl', {
-          t: NOW(),
-          type: 'quote_error',
-          signal,
-          error: String(error),
-        });
+        logJsonl('shadow.jsonl', { t: NOW(), type: 'quote_error', signal, error: String(error) });
+        if (CFG.executionMode === 'real') { // real money: no quote => do not trade
+          logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'quote unavailable (failing closed)', signal, error: String(error) });
+          saveJson('state-exec.json', state);
+          return;
+        }
       }
     }
 
