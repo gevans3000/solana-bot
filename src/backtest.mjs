@@ -49,6 +49,7 @@ export function paramsFromCfg(cfg = CFG) {
     trailInUptrend: cfg.trailInUptrend, trailArmPct: cfg.trailArmPct, trailGivePct: cfg.trailGivePct,
     intrabarStops: cfg.intrabarStops,
     anchorCooldownBars: cfg.anchorCooldownBars,
+    entryBounceConfirm: cfg.entryBounceConfirm,
     botSpecializationEnabled: cfg.botSpecializationEnabled, bearRsiMax: cfg.bearRsiMax,
     bullRegimeThreshold: cfg.bullRegimeThreshold, bullDipScale: cfg.bullDipScale,
     regimeSizeEnabled: cfg.regimeSizeEnabled, regimeSizeUpMult: cfg.regimeSizeUpMult,
@@ -167,8 +168,9 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
   }
     scaledBuy = Math.min(scaledBuy, balances.usdc); // never exceed available USDC // cap at 25% per trade
 
+  const bounceOk = !P.entryBounceConfirm || botState.prevClose == null || price > botState.prevClose;
   let signal = null;
-  if (eligible && anchorCdOk && price <= buyTrigger && scaledBuy >= P.minTradeUsdc && buyAllowed) {
+  if (eligible && anchorCdOk && price <= buyTrigger && scaledBuy >= P.minTradeUsdc && buyAllowed && bounceOk) {
     signal = { t: new Date(nowMs).toISOString(), bot: botState.name, side: 'BUY',
       amount: +scaledBuy.toFixed(6), price, anchor: botState.anchor,
       edgeBps: Math.round(((botState.anchor - price) / botState.anchor) * 10000),
@@ -196,6 +198,7 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
     botState.anchor = price;
     if (signal.side === 'BUY') { botState.lastBuyBar = bar; botState.lastBuyAmountSol = signal.amount / price; }
   }
+  botState.prevClose = price;
   return signal;
 }
 

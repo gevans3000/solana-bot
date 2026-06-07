@@ -6,8 +6,9 @@ export async function getOnChainBalances(walletAddress) {
 
   try {
     // Get SOL balance
-    const solLamports = await rpcRequest('getBalance', [walletAddress]);
-    const sol = Number(solLamports ?? 0) / 1_000_000_000;
+    const solResult = await rpcRequest('getBalance', [walletAddress]);
+    // getBalance returns { value: lamports, context: {...} }
+    const sol = Number(solResult?.value ?? solResult ?? 0) / 1_000_000_000;
 
     // Get USDC token accounts
     let usdc = 0;

@@ -37,7 +37,7 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
 
   const stateFile = `state-${bot}.json`;
   const state = loadJson(stateFile, {
-    anchor: null, lastSignalAt: null, lastPrice: null,
+    anchor: null, lastSignalAt: null, lastPrice: null, prevPrice: null,
     emaFast: null, prevEmaFast: null,
     emaSlow: null,
     priceBuf: [],
@@ -125,7 +125,8 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
   }
     sizedBuyUsdc = Math.min(sizedBuyUsdc, balances.usdc); // never exceed available USDC
 
-  if (eligible && anchorCdOk && price <= buyTrigger && balances.usdc >= sizedBuyUsdc && sizedBuyUsdc >= CFG.minTradeUsdc && buyAllowed) {
+  const bounceOk = !CFG.entryBounceConfirm || state.prevPrice == null || price > state.prevPrice;
+  if (eligible && anchorCdOk && price <= buyTrigger && balances.usdc >= sizedBuyUsdc && sizedBuyUsdc >= CFG.minTradeUsdc && buyAllowed && bounceOk) {
     signal = {
       t: NOW(), bot, side: 'BUY',
       amount: +sizedBuyUsdc.toFixed(6), amountUnit: 'USDC', price, anchor: state.anchor,
@@ -174,5 +175,6 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
   } else {
     state.lastPrice = price;
   }
+  state.prevPrice = price;
   saveJson(stateFile, state);
 }

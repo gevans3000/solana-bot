@@ -32,6 +32,9 @@ const REPORT_DIR = path.join(ROOT, 'logs', 'self-audit');
 const TUNING_LOG = path.join(ROOT, 'TUNING-LOG.md');
 
 const BEAR_FILE = 'sol-usd-1d.json';
+const HONEST_FILE = 'sol-usd-1h-540d.json'; // must not regress; primary live-expectation guard
+// Intraday files whose mean must not regress (daily-candle dominance guard)
+const INTRADAY_FILES = ['sol-usd-1h-540d.json', 'sol-usd-15m-60d.json', 'sol-usd-5m-30d.json', 'sol-usd-1m-7d.json'];
 const BEAR_FLOOR = 9.0;     // must stay >= this (also what selftest enforces)
 const MIN_GAIN_PP = 0.5;    // min mean-upside improvement to act on
 
@@ -78,6 +81,9 @@ const base = paramsFromCfg(CFG);
 const baseM = evalParams(base);
 const baseBear = baseM[BEAR_FILE];
 const baseUp = meanUpside(baseM);
+const base1h = baseM[HONEST_FILE] ?? 0;
+const intradayMean = (m) => { const avail = INTRADAY_FILES.filter(f => f in m); return avail.length ? avail.reduce((a,f) => a + m[f], 0) / avail.length : 0; };
+const baseIntraday = intradayMean(baseM);
 
 // ---- grid search over SAFE knobs --------------------------------------------
 const grid = { bullRegimeThreshold: [5, 6, 7, 8, 9], regimeSizeUpMult: [1.5, 2.0, 2.5, 3.0], regimeSizeDownMult: [0.5, 0.75] };
@@ -87,13 +93,17 @@ for (const up of grid.regimeSizeUpMult)
 for (const dn of grid.regimeSizeDownMult) {
   const P = { ...base, bullRegimeThreshold: th, regimeSizeUpMult: up, regimeSizeDownMult: dn };
   const m = evalParams(P);
-  if (m[BEAR_FILE] < BEAR_FLOOR) continue;          // bear floor
-  if (m[BEAR_FILE] < baseBear - 0.05) continue;      // no bear regression
+  if (m[BEAR_FILE] < BEAR_FLOOR) continue;               // bear floor
+  if (m[BEAR_FILE] < baseBear - 0.05) continue;          // no bear regression
+  if ((m[HONEST_FILE] ?? 0) < base1h - 0.01) continue;  // 1h-540d must not regress
+  if (intradayMean(m) < baseIntraday - 0.05) continue;  // intraday mean must not regress (daily-candle dominance guard)
   const up_ = meanUpside(m);
   if (!best || up_ > best.upMean) best = { th, up, dn, m, upMean: up_, bear: m[BEAR_FILE] };
 }
 
-const candidateBetter = best && (best.upMean - baseUp) >= MIN_GAIN_PP
+// Require improvement in intraday mean, not just overall mean — prevents daily-candle dominance from triggering apply
+const bestIntraday0 = best ? intradayMean(best.m) : 0;
+const candidateBetter = best && (bestIntraday0 - baseIntraday) >= MIN_GAIN_PP
   && (best.th !== base.bullRegimeThreshold || best.up !== base.regimeSizeUpMult || best.dn !== base.regimeSizeDownMult);
 
 const isLive = (process.env.EXECUTION_MODE || CFG.executionMode) === 'real'
@@ -103,7 +113,8 @@ const isLive = (process.env.EXECUTION_MODE || CFG.executionMode) === 'real'
 let action = 'no_change', detail = '';
 if (!candidateBetter) {
   action = 'no_change';
-  detail = best ? `best candidate +${(best.upMean - baseUp).toFixed(2)}pp < ${MIN_GAIN_PP}pp threshold` : 'no safe candidate';
+  if (!best) detail = 'no safe candidate (all candidates failed bear floor or 1h-540d guard)';
+  else detail = `best candidate intraday +${(bestIntraday0 - baseIntraday).toFixed(2)}pp < ${MIN_GAIN_PP}pp threshold (overall +${(best.upMean - baseUp).toFixed(2)}pp is daily-candle-driven, not actionable)`;
 } else if (REPORT_ONLY) {
   action = 'recommend'; detail = 'report-only flag set';
 } else if (isLive) {
@@ -126,14 +137,14 @@ if (!candidateBetter) {
     fs.writeFileSync(envPath, env);
     execSync('node src/selftest.mjs', { cwd: ROOT, stdio: 'pipe', timeout: 120000 });
     action = 'applied'; detail = 'tests green after apply';
-    fs.rmSync(backup, { force: true });
+    try { fs.rmSync(backup, { force: true }); } catch { /* this mount cannot unlink; harmless leftover */ }
     try {
       const msg = `self-audit: apply BULL_REGIME_THRESHOLD=${best.th} REGIME_SIZE_UP_MULT=${best.up} REGIME_SIZE_DOWN_MULT=${best.dn} (+${(best.upMean - baseUp).toFixed(2)}pp upside, bear ${best.bear.toFixed(2)}%)`;
       execSync('git add TUNING-LOG.md', { cwd: ROOT, stdio: 'pipe' });
       execSync(`git commit -m ${JSON.stringify(msg)}`, { cwd: ROOT, stdio: 'pipe' });
     } catch { /* commit best-effort */ }
   } catch (e) {
-    if (fs.existsSync(backup)) { fs.copyFileSync(backup, envPath); fs.rmSync(backup, { force: true }); }
+    if (fs.existsSync(backup)) { fs.copyFileSync(backup, envPath); try { fs.rmSync(backup, { force: true }); } catch {} }
     action = 'apply_failed_reverted'; detail = String(e.message || e).slice(0, 120);
   }
 }
@@ -176,13 +187,13 @@ lines.push('');
 lines.push(`Action: **${action.toUpperCase()}** — ${detail}`);
 lines.push(`Live: ${isLive ? 'YES' : 'no'} | report-only: ${REPORT_ONLY}`);
 lines.push('');
-lines.push(`Current: bear ${baseBear.toFixed(2)}% | mean upside ${baseUp.toFixed(2)}%`);
+lines.push(`Current: bear ${baseBear.toFixed(2)}% | mean upside ${baseUp.toFixed(2)}% | intraday mean ${baseIntraday.toFixed(2)}%`);
 lines.push(`  ${fmtRow(baseM)}`);
 if (best) {
   const dpp = best.upMean - baseUp;
   lines.push('');
   lines.push(`Best safe candidate: BULL_REGIME_THRESHOLD=${best.th} REGIME_SIZE_UP_MULT=${best.up} REGIME_SIZE_DOWN_MULT=${best.dn}`);
-  lines.push(`  bear ${best.bear.toFixed(2)}% | mean upside ${best.upMean.toFixed(2)}% (Δ ${dpp >= 0 ? '+' : ''}${dpp.toFixed(2)}pp)`);
+  lines.push(`  bear ${best.bear.toFixed(2)}% | mean upside ${best.upMean.toFixed(2)}% (Δ ${dpp >= 0 ? '+' : ''}${dpp.toFixed(2)}pp) | intraday ${intradayMean(best.m).toFixed(2)}%`);
   lines.push(`  ${fmtRow(best.m)}`);
 }
 lines.push('');

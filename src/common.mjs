@@ -96,6 +96,7 @@ export const CFG = {
   bullMaxNotionalUsdc: Math.max(1, num('BULL_MAX_NOTIONAL_USDC', 8)),   // Wealth-V4: per-trade notional cap allowed ONLY in strong bull (sim/dry/shadow); REAL mode stays capped at realMaxNotionalUsdc
   intrabarStops:   bool('INTRABAR_STOPS', true),
   anchorCooldownBars: Math.max(0, num('ANCHOR_COOLDOWN_BARS', 2)),
+  entryBounceConfirm: bool('ENTRY_BOUNCE_CONFIRM', false),
   botSpecializationEnabled: bool('BOT_SPECIALIZATION_ENABLED', true),
   bearRsiMax:      Math.max(1, num('BEAR_RSI_MAX', 35)),
   bullRegimeThreshold: Math.max(0, num('BULL_REGIME_THRESHOLD', 7.0)),
