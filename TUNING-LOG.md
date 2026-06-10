@@ -13,3 +13,5 @@
 - 2026-06-07T13:13:01.605Z — NO_CHANGE — bear 9.53%→9.54% upside 57.50%→69.39% — best candidate intraday +0.00pp < 0.5pp threshold (overall +11.89pp is daily-candle-driven, not actionable)
 
 - 2026-06-07T13:14:00Z — NO_CHANGE — bear 9.53%→9.53% upside 57.50%→57.50% — best candidate intraday +0.00pp < 0.5pp (overall +11.89pp is daily-candle-driven); self-audit.mjs recovered from truncation; tests 10/10
+- 2026-06-10T20:43:19.962Z — NO_CHANGE — bear 9.36%→9.35% upside 36.95%→34.66% — best candidate intraday +0.11pp < 0.5pp threshold (overall +-2.29pp is daily-candle-driven, not actionable)
+- 2026-06-10T20:44:45.530Z — NO_CHANGE — bear 9.36%→9.35% upside 36.95%→34.66% — best candidate intraday +0.11pp < 0.5pp threshold (overall +-2.29pp is daily-candle-driven, not actionable)

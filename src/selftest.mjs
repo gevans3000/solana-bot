@@ -53,6 +53,7 @@ console.log('\nTest 1: Legacy mode (new features off) → +4.33% ±0.05');
     intrabarStops: false,
     anchorCooldownBars: 0,
     botSpecializationEnabled: false,
+    entryBounceConfirm: false,
   });
   const m = runBacktest(series, P);
   const r = m.returnPct;

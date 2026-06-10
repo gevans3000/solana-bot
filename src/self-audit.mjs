@@ -66,6 +66,7 @@ for (const f of files) {
   catch {}
 }
 if (!series[BEAR_FILE]) { console.error('No bear dataset; aborting.'); process.exit(1); }
+if (!series[HONEST_FILE]) { console.error('No sol-usd-1h-540d.json honest dataset; aborting — 1h/intraday guards would fail-open.'); process.exit(1); }
 const upsideFiles = Object.keys(series).filter(f => f !== BEAR_FILE && f !== 'sol-usd-1m.json');
 
 function evalParams(P) {
@@ -97,8 +98,8 @@ for (const dn of grid.regimeSizeDownMult) {
   if (m[BEAR_FILE] < baseBear - 0.05) continue;          // no bear regression
   if ((m[HONEST_FILE] ?? 0) < base1h - 0.01) continue;  // 1h-540d must not regress
   if (intradayMean(m) < baseIntraday - 0.05) continue;  // intraday mean must not regress (daily-candle dominance guard)
-  const up_ = meanUpside(m);
-  if (!best || up_ > best.upMean) best = { th, up, dn, m, upMean: up_, bear: m[BEAR_FILE] };
+  const im_ = intradayMean(m);
+  if (!best || im_ > best.intraday) best = { th, up, dn, m, upMean: meanUpside(m), intraday: im_, bear: m[BEAR_FILE] };
 }
 
 // Require improvement in intraday mean, not just overall mean — prevents daily-candle dominance from triggering apply

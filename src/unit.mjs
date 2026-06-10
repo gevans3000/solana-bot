@@ -7,7 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './_test-env.mjs'; // MUST precede common/backtest imports (test state isolation)
 import { runBacktest, loadSeries, paramsFromCfg } from './backtest.mjs';
-import { CFG, circuitBreakerTripped, effectiveMaxNotionalUsdc } from './common.mjs';
+import { CFG, circuitBreakerTripped, effectiveMaxNotionalUsdc, loadPortfolio, fileInState } from './common.mjs';
+import fs from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -93,6 +94,30 @@ console.log('\nUnit 6: effectiveMaxNotionalUsdc gate + real-money safety invaria
 }
 
 console.log(`\n${'─'.repeat(50)}`);
+// ── Group N: loadPortfolio corrupt-file handling ─────────────────────────────
+console.log('\nUnit: loadPortfolio corrupt portfolio.json');
+{
+  const pf = fileInState('portfolio.json');
+  fs.writeFileSync(pf, '{ this is not json');
+  // not live (test env inherits dryRun/sim semantics) → falls back, no throw
+  let fellBack = false;
+  try { const port = loadPortfolio(); fellBack = port.usdc === CFG.simStartUsdc; }
+  catch { fellBack = false; }
+  const live = CFG.executionMode === 'real' && !CFG.dryRun;
+  if (live) {
+    let threw = false;
+    try { loadPortfolio(); } catch { threw = true; }
+    assert('corrupt portfolio.json throws when LIVE (fail-closed)', threw);
+  } else {
+    assert('corrupt portfolio.json falls back when not live', fellBack);
+  }
+  // valid file still merges over fallback
+  fs.writeFileSync(pf, JSON.stringify({ usdc: 42.5, sol: 1.25 }));
+  const merged = loadPortfolio();
+  assert('valid portfolio.json merges over fallback', merged.usdc === 42.5 && merged.sol === 1.25);
+  fs.rmSync(pf, { force: true });
+}
+
 console.log(`Unit results: ${passed} passed, ${failed} failed`);
 if (failed > 0) { console.error('UNIT TESTS FAILED'); process.exit(1); }
 console.log('UNIT TESTS PASSED');

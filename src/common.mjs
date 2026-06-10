@@ -250,7 +250,19 @@ export function loadPortfolio() {
     mode: CFG.executionMode, usdc: CFG.simStartUsdc, sol: CFG.simStartSol,
     avgEntryPrice: 0, realizedPnlUsdc: 0, sweptUsdc: 0, lastUpdatedAt: NOW(),
   };
-  return { ...fallback, ...loadJson('portfolio.json', fallback) };
+  // Fail CLOSED if a portfolio file exists but cannot be parsed while live:
+  // silently resetting would wipe realizedPnlUsdc and blind the daily-loss circuit breaker.
+  const p = fileInState('portfolio.json');
+  if (fs.existsSync(p)) {
+    try { return { ...fallback, ...JSON.parse(fs.readFileSync(p, 'utf8')) }; }
+    catch (e) {
+      if (CFG.executionMode === 'real' && !CFG.dryRun) {
+        throw new Error(`portfolio.json exists but is corrupt — refusing to reset live PnL tracking (fix or restore state/portfolio.json): ${e.message}`);
+      }
+      return fallback;
+    }
+  }
+  return fallback;
 }
 
 export function savePortfolio(portfolio) {
