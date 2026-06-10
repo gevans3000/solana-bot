@@ -2,19 +2,18 @@
 # Each run READS this at start and REWRITES at end.
 
 ## Focus for the next run (do this first)
-- Confirm `npm run test:all` green and bear >= 9.0%. Config PROVEN: BULL_REGIME_THRESHOLD=7.0,
-  REGIME_SIZE_UP_MULT=2.0, REGIME_SIZE_DOWN_MULT=0.75. Gate fully hardened (3 layers). Tests 21/21+10/10.
-- **FIRST: integrity-check all edited src files** — `node --check src/common.mjs src/backtest.mjs src/bot-lib.mjs`.
-- **ENTRY_BOUNCE_CONFIRM=true is now live in .env** — see 2026-06-07 lesson. Restart shadow session to pick it up.
-- **SHADOW SESSION**: Ask George if shadow runner is still up. Do NOT propose DRY_RUN=0 until several
-  days of clean dry trades exist with bounce-confirm active.
-- **Codex found 2 issues in self-audit.mjs** (from last review — NOT yet fixed):
-  - [P1] best is still chosen by meanUpside, not intradayMean — a daily-candle-heavy winner can still
-    block a valid intraday candidate. Fix: track best by intradayMean inside the loop.
-  - [P2] entryBounceConfirm guard fails-open when sol-usd-1h-540d.json is missing (both sides default to 0).
-    Fix: abort if HONEST_FILE is absent from series.
-  Fix these next session before running self-audit.
-- **Optional tuning:** Options A (BULL_PROPORTIONAL_SELLS) and B (BULL_MIN_SOL_HOLD) gated + OFF.
+- Confirm `npm run test:all` green (now 23 unit + 10 selftest) and bear >= 9.0% (currently 9.36%
+  with ENTRY_BOUNCE_CONFIRM=true). Config PROVEN: BULL_REGIME_THRESHOLD=7.0, REGIME_SIZE_UP_MULT=2.0,
+  REGIME_SIZE_DOWN_MULT=0.75.
+- **FIRST: integrity-check all edited src files** — `node --check src/*.mjs` (loop, not one-liner pipe).
+- **SHADOW SESSION**: Ask George if the shadow runner is up and restart it if it predates 2026-06-10
+  (smoke-isolation fix landed — older runs may have read a leaked mock price from price-cache.json).
+  Do NOT propose DRY_RUN=0 until several days of clean dry trades exist with bounce-confirm active.
+- **Daily reconcile cron is live** (`solana-bot-daily-reconcile`, 8:30am, after the 8am self-audit).
+  It can't reach mainnet RPC from the sandbox — George verifies with `npm run reconcile` from a
+  normal terminal. Once on Helius RPC, re-test.
+- Remaining go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow → one tiny live trade
+  (George's explicit OK required, DRY_RUN stays 1 until then).
 
 ## Running lessons (append; never delete)
 - 2026-06-05: Edit/Write tool truncates src/*.mjs on this mount — always edit from shell + node --check.
@@ -77,6 +76,52 @@
 - 2026-06-07 (IMPROVEMENT BACKLOG): Ranked: #1 paid RPC (George doing Helius), #2 bounce confirm (DONE),
   #3 regime detection improvement, #4 asymmetric position sizing, #5 more backtest history.
 
+- 2026-06-10 (CODEX FIXES LANDED): P1 — best candidate is now picked by intradayMean inside the
+  grid loop (was meanUpside; a daily-candle-heavy winner could shadow a valid intraday candidate).
+  P2 — self-audit aborts if sol-usd-1h-540d.json is absent (the `?? 0` guards failed-open when both
+  sides defaulted to 0). Verified live: report now shows the true intraday delta (+0.11pp).
+- 2026-06-10 (ENV LEAK INTO LEGACY TEST): selftest Test 1 "legacy mode" builds params from live CFG
+  and only overrides the flags it knows about — when ENTRY_BOUNCE_CONFIRM=true landed in .env
+  (06-07, after that day's test run), legacy baseline drifted 4.33%->6.00% and the suite went red.
+  Fix: entryBounceConfirm:false added to Test 1 overrides. LESSON: every new gated flag flipped on
+  in .env MUST also be explicitly disabled in the legacy-mode test the same day.
+- 2026-06-10: data refresh failed in-sandbox again (Yahoo/undici network) — backtests ran on cached
+  data; results valid vs cache. Recurring sandbox limitation, not an RPC problem.
+- 2026-06-10: 0 dry trades / 0 errors / 0 breaker in 24h — shadow session is NOT running. Surfaced
+  to George; bounce-confirm has no dry-run evidence yet.
+
+- 2026-06-10 (HARDENING SESSION): Codex P1/P2 fixed & committed — self-audit best-pick now by
+  intradayMean (P1) and aborts if sol-usd-1h-540d.json missing (P2, was fail-open). Today's audit
+  ran clean: NO_CHANGE, gate held.
+- 2026-06-10 (SMOKE LEAK BUG): smoke.mjs ran bot ticks with PRICE_MODE=mock but WITHOUT
+  SOLBOT_STATE_DIR isolation — a fake ~$65 price was written into live state/price-cache.json
+  (TTL=loopSec, so window is seconds, but a concurrently-running shadow tick could consume it).
+  Fixed: smoke now uses a temp state/log dir like _test-env.mjs. Restart any long-lived shadow
+  session started before this fix.
+- 2026-06-10 (FAIL-CLOSED PORTFOLIO): loadPortfolio silently reset to sim-start values if
+  portfolio.json existed but was corrupt — live, that wipes realizedPnlUsdc and blinds the
+  circuit breaker. Now throws when EXECUTION_MODE=real && !DRY_RUN; falls back otherwise.
+  Unit-tested (23/23).
+- 2026-06-10 (A/B INTRADAY VERDICT): Option A (BULL_PROPORTIONAL_SELLS) is exactly neutral on every
+  intraday set and costs -13.3pp on 1d-5yr. Option B (BULL_MIN_SOL_HOLD 0.05/0.1/0.2) is neutral
+  intraday and monotonically hurts all daily sets. BOTH STAY OFF — backlog item closed, no further
+  validation needed.
+- 2026-06-10 (RECONCILE): reconcile.mjs upgraded — logs/reconcile.log, sendAlert + exit 2 on
+  MISMATCH only when actually live (real && !DRY_RUN), informational otherwise (dry-run trades
+  never touch the tracked portfolio, so shadow can't false-alarm). Scheduled daily 8:30am.
+- 2026-06-10: mv/rename of data files on this mount fails like unlink (EPERM) — cannot simulate
+  missing-file scenarios in place; test such guards by code review or in /tmp copies.
+- 2026-06-10 (TRAIL SWEEP — REJECTED): BULL_TRAIL_GIVE_PCT grid 20/25/30/35: 35 shows 1d-full
+  +232pp (85->317) but EVERY intraday set delta ~0.00 — textbook daily-candle dominance, same
+  pattern the 3-layer gate rejects. 20 and 30 are strictly worse. KEEPING 25. Revisit 35 only
+  when intraday data covering a real bull regime exists (current 1h/15m/5m sets are all bear/chop).
+- 2026-06-10: shadow runner DOWN since 2026-06-07 14:54 (no shadow data for 3 days). Jupiter price
+  API + Binance + mainnet RPC all unreachable from the sandbox — shadow/data-refresh MUST run on
+  George's machine. Created start-shadow.cmd (repo root): one double-click = clear locks, commit,
+  push, refresh data, start shadow.
+- 2026-06-10: current backtest set (bounce-confirm on): bear 9.36, 1h-540d -7.74 (+42pp vs hold),
+  5yr 169.83, 1d-bull 94.12, 1d-full 85.15, 15m 0.96, 5m -1.99, 1m-7d -1.75.
+
 ## Backlog progress
 - [x] 1. Paid RPC endpoint — documented in .env (Helius/QuickNode/Triton); George swaps when ready
 - [x] 2. Jupiter max-slippage + priority-fee guard — wired in jupiter-swap.mjs + .env
@@ -86,10 +131,12 @@
 - [x] WEALTH-V2: Sell-side fixed. Option C (regime-gated wide trailing) ACTIVE; A & B implemented + OFF.
       Results: bear +9.53%, bull183d +67.09%, 5yr +122.64%, 1h-540d +38pp vs hold. Targets all met.
 - [ ] 3. Shadow session -> one tiny live trade (ask George before DRY_RUN=0)
-- [ ] 4. Reconciliation cron scheduled task
-- [ ] A/B-LIVE: validate BULL_PROPORTIONAL_SELLS / BULL_MIN_SOL_HOLD on 1h/15m before enabling live
+- [x] 4. Reconciliation cron scheduled task — solana-bot-daily-reconcile, 8:30am daily
+- [x] A/B-LIVE: validated on 1h/15m/5m/1m — both neutral intraday, A costs -13pp on 5yr; CLOSED, stay OFF
 - [x] GATE-HARDEN: 3-layer gate — 1h-540d no-regress (loop-level), intraday mean no-regress, candidateBetter uses intraday improvement not overall mean
 - [x] AUDIT-FIX: self-audit.mjs no longer crashes on the mount (rmSync EPERM wrapped); loop runs clean
+- [x] CODEX-FIX (2026-06-10): P1 best-by-intradayMean in-loop; P2 abort when 1h-540d dataset missing
+- [x] TEST-FIX (2026-06-10): legacy-mode selftest now disables entryBounceConfirm (env-leak regression)
 
 - 2026-06-07: Codex caught that the 1h-540d guard was post-loop (best already chosen by mean-upside). Fixed to filter inside loop. Then found the overall-mean gate still let daily-candle-dominated candidates through (th=8/up=2/dn=0.5 +11.89pp overall, Δ0.00pp intraday). Fix: candidateBetter now requires intraday mean improvement >= MIN_GAIN_PP. The self-audit gate now has 3 layers and is daily-candle-proof.
 
