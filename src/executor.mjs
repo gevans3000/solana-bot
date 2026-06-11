@@ -242,11 +242,12 @@ async function tick() {
       return;
     }
 
-    if (CFG.executionMode === 'real' && CFG.dryRun) {
-      logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'DRY_RUN is on for real execution', balances });
-      saveJson('state-exec.json', state);
-      return;
-    }
+    // NOTE: no early DRY_RUN return here. Shadow mode (real + DRY_RUN=1) must flow through the
+    // full pipeline — decision logging, sizing caps, quote-aware net-edge gate — so dry trades are
+    // recorded ('dry_run_trade' below) and the quote gate is exercised. Real execution is still
+    // double-blocked: executeRealTrade() returns immediately when CFG.dryRun, and daily counters
+    // are only incremented for non-dry trades. (An early return here from 2026-06 made shadow
+    // sessions blind: every tick logged only 'DRY_RUN is on' and no dry trade was ever recorded.)
 
     const currentWindow = getDecisionWindow();
 
