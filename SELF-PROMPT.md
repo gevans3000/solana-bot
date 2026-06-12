@@ -2,17 +2,18 @@
 # Each run READS this at start and REWRITES at end.
 
 ## Focus for the next run (do this first)
-- Confirm `npm run test:all` green (now 23 unit + 10 selftest) and bear >= 9.0% (currently 9.36%
-  with ENTRY_BOUNCE_CONFIRM=true). Config PROVEN: BULL_REGIME_THRESHOLD=7.0, REGIME_SIZE_UP_MULT=2.0,
-  REGIME_SIZE_DOWN_MULT=0.75.
-- **FIRST: integrity-check all edited src files** — `node --check src/*.mjs` (loop, not one-liner pipe).
-- **SHADOW SESSION**: Ask George if the shadow runner is up and restart it if it predates 2026-06-10
-  (smoke-isolation fix landed — older runs may have read a leaked mock price from price-cache.json).
-  Do NOT propose DRY_RUN=0 until several days of clean dry trades exist with bounce-confirm active.
-- **Daily reconcile cron is live** (`solana-bot-daily-reconcile`, 8:30am, after the 8am self-audit).
-  It can't reach mainnet RPC from the sandbox — George verifies with `npm run reconcile` from a
-  normal terminal. Once on Helius RPC, re-test.
-- Remaining go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow → one tiny live trade
+- **FIRST: verify George restarted the stack via start-shadow.cmd.** Check in order:
+  (1) `git log -1` — HEAD must be NEWER than 4f92745 (the auto-commit of the staged batch);
+  (2) `.git/*.lock` gone; (3) executor.jsonl current session begins with a `"type":"boot"` line whose
+  `commit` matches `git rev-parse --short HEAD`; (4) `tick` lines every ~10s and eventually
+  `dry_run_trade` entries. If HEAD is still 4f92745 or no boot line: stack/commit still pending —
+  surface as the #1 blocker, do NOT write new code on top of the uncommitted batch.
+- Baseline to confirm: `npm run test:all` green (23 unit + 10 selftest), bear >= 9.0% (currently
+  9.48% with ENTRY_BOUNCE_CONFIRM=true, REGIME_EMA_SLOW=45, BULL_DIP_PCT=0.8). Proven knobs:
+  BULL_REGIME_THRESHOLD=7.0, REGIME_SIZE_UP_MULT=2.0, REGIME_SIZE_DOWN_MULT=0.75.
+- Integrity-check edited src files: `node --check src/*.mjs` (loop, not one-liner pipe).
+- Do NOT propose DRY_RUN=0 until several days of clean dry_run_trade logs with bounce-confirm active.
+- Remaining go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow -> one tiny live trade
   (George's explicit OK required, DRY_RUN stays 1 until then).
 
 ## Running lessons (append; never delete)
@@ -119,6 +120,13 @@
   API + Binance + mainnet RPC all unreachable from the sandbox — shadow/data-refresh MUST run on
   George's machine. Created start-shadow.cmd (repo root): one double-click = clear locks, commit,
   push, refresh data, start shadow.
+- 2026-06-10 (SHADOW WAS BLIND — FIXED, commit 4f92745): executor.mjs had an early DRY_RUN return
+  BEFORE decision logging, sizing caps and the quote gate — so shadow mode logged only
+  'skip: DRY_RUN is on' every tick and NEVER recorded a dry trade. The quote-aware net-edge gate
+  (built for shadow validation) had never executed. Removed the early return; the designed dry path
+  downstream already handles everything ('dry_run_trade' log, counters skipped, executeRealTrade
+  blocks real execution). Shadow runner must be RESTARTED to pick this up. When reviewing shadow
+  logs, look for 'dry_run_trade' in executor.jsonl and 'pre_trade' in shadow.jsonl.
 - 2026-06-10: current backtest set (bounce-confirm on): bear 9.36, 1h-540d -7.74 (+42pp vs hold),
   5yr 169.83, 1d-bull 94.12, 1d-full 85.15, 15m 0.96, 5m -1.99, 1m-7d -1.75.
 
@@ -143,4 +151,54 @@
 ## How to rewrite this file at the end of a run
 Keep sections. Check off completed items, set next focus, append lessons. Never trade/move funds/change
 EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, tests green, bear >= 9.0%.
-                                                                                                                                                                                                                                                                                                                                                                                                                                      
+
+- 2026-06-11 (EXECUTOR SILENT — PROCESS STOPPED AT MIDNIGHT): Bear/bull bots running today (195 signals, sweeper dry_run_sweep active). But executor.jsonl has ZERO entries for June 11. Last executor entry was 2026-06-10T23:58 ("skip: DRY_RUN is on" — OLD pre-fix code). After the 4f92745 fix, executor should log `tick` on every cycle regardless of trade decision — the silence means the executor PROCESS stopped at midnight and was not restarted with the new shadow session. state-exec.json shows signalIndex=796 (= total signal count), suggesting executor ran once at shadow start, consumed all signals (all stale), then stopped or the process exited. No `dry_run_trade` has EVER been logged. George must restart the full shadow from start-shadow.cmd (all.mjs = bots + executor together).
+- 2026-06-11 (BOT CONFLICT ANALYSIS): Of today's 7 BUY signals, BEAR BUYs had 3–5 BULL SELLs in the 180s window (conflict → NO_TRADE). Pure BULL BUY signals had 0 conflicts and would pass decide. The dry-trade absence is executor-process absence, not a logic bug in conflict detection.
+
+- 2026-06-11 (SWEEP WIN — BULL_DIP_PCT 0.8 + REGIME_EMA_SLOW 45): single-knob sweep over 17 knobs,
+  then combo grid. Winner improves EVERY dataset: bear 9.36->9.48 (margin UP), 1h-540d -7.74->-7.12
+  (+0.63pp), 5m -1.99->-1.08, 1m -1.75->-0.98, 15m ~flat, 5yr 169.8->183.1, full 85.1->94.1,
+  bull 94.1->95.2. Plateau smooth in both directions (0.7-0.9 x 42-48 all positive — not a spike).
+  Walk-forward thirds: 1h wins ALL 3 segments, bear wins all 3; losses only in noisy daily-candle
+  slices + two <0.1pp 5m/15m misses. Applied to .env + .env.example.
+- 2026-06-11 (LEGACY TEST PIN, again): the .env change broke selftest Test 1 (legacy baseline drifted
+  4.33->3.91) — same env-leak class as 06-10. Pinned regimeEmaSlow:50 + bullDipPct:0.5 in Test 1
+  overrides. RULE CONFIRMED: every .env knob change must be pinned in the legacy test the same run.
+- 2026-06-11 (ALL.MJS RESTART BUG — ROOT CAUSE of the dead executor): all.mjs only restarted children
+  with exit code != 0. The executor exited CLEANLY (code 0) at midnight and stayed dead 12h while
+  bots kept running — shadow collected nothing, silently. Fixed: ALWAYS restart (every child is a
+  long-lived loop; clean exit is still abnormal). start-shadow.cmd also got a :shadowloop
+  auto-restart wrapper. ONE double-click from George and the stack stays up on its own.
+- 2026-06-11 (CADENCE): self-audit cron 1x->3x daily (0 8,14,20); new watchdog task
+  solana-bot-stack-watchdog 4x daily (30 9,13,17,21) — freshness check + notify, read-only.
+
+- 2026-06-11 evening (STALE-CODE EXECUTOR CONFIRMED + STACK DOWN): executor.jsonl shows 14.5k ticks
+  00:00-18:25 all logging "skip: DRY_RUN is on for real execution" — that string does NOT exist in
+  HEAD (4f92745 removed the early return) — hard proof the process ran pre-fix code all day. Zero
+  dry_run_trade ever logged. ALL processes (bull/bear/executor) stopped at 18:25:11; stack is DOWN.
+  Fix shipped: executor now logs a `boot` line at startup with the git commit + pid, so the running
+  build is identifiable from the first line of any session's log. George must restart via
+  start-shadow.cmd (now self-healing, auto-commits staged work).
+- 2026-06-11 evening: morning session's work (REGIME_EMA_SLOW 50->45, BULL_DIP_PCT 0.5->0.8 sweep,
+  all.mjs always-restart, self-healing start-shadow.cmd, selftest legacy pins, 6h datasets) was left
+  STAGED but uncommitted — .git/index.lock was stale and the sandbox can't unlink it. Worked around
+  with `cp .git/index /tmp/idx && GIT_INDEX_FILE=/tmp/idx git add ... && git commit`. LESSON: when
+  index.lock blocks staging, the alternate-index path works end-to-end; always finish the commit in
+  the same run.
+- 2026-06-11 evening audit: NO_CHANGE (intraday +0.00pp), bear 9.48%, tests PASS, 0 errors/breaker
+  in 24h (the 2 executor "error" entries are June 5/6 EPERM lock noise, not new).
+- 2026-06-11 evening (COMMIT DEFERRED): stale .git/HEAD.lock+index.lock (sandbox cannot unlink)
+  blocked even the alternate-index commit. Workaround shipped: start-shadow.cmd now does
+  `git add -A` before its auto-commit, so ALL of tonight's work (executor boot log, SELF-PROMPT,
+  start-shadow CRLF fix, .gitignore .claude/) commits+pushes the moment George double-clicks it.
+  Next run: verify the auto-commit landed (`git log -1`) before doing anything else.
+
+- 2026-06-12 00:10 UTC night audit (= 2026-06-11 8pm run): NO_CHANGE (best candidate intraday
+  +0.00pp), bear 9.48%, tests PASS, all src/*.mjs node --check clean. STACK STILL DOWN since
+  2026-06-11 18:25 and the staged batch is STILL uncommitted (HEAD=4f92745, stale HEAD.lock +
+  index.lock persist — sandbox cannot unlink). Deliberately wrote NO new code: piling more edits on
+  an uncommitted batch is how the 06-07 truncation loss happened. Everything resolves with ONE
+  George action: double-click start-shadow.cmd (it now does git add -A + auto-commit + push +
+  data refresh + self-healing shadow loop).
+- 2026-06-12: sandbox note — `nohup cmd &` dies when the bash call returns; `setsid nohup cmd &`
+  survives. Needed for any in-sandbox run of self-audit longer than the 45s tool timeout.

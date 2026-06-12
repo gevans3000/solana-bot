@@ -12,3 +12,4 @@ xtest.mjs
 src/_synctest.txt
 bt.txt
 .env.audit-bak
+.claude/

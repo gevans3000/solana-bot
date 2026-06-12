@@ -47,12 +47,13 @@ function startOne(name, file) {
     clearTimeout(stableTimer);
     state.lastExit = { code, time: Date.now() };
     if (!exiting) {
-      if (code !== 0) {
-        const waitMs = Math.min(30000, Math.pow(2, state.attempt) * 1000);
-        console.error(`[${name}] exited with code ${code}, restart in ${waitMs}ms (attempt ${state.attempt})`);
-        logJsonl('all.jsonl', { t: NOW(), type: 'restart', name, code, attempt: state.attempt, waitMs });
-        setTimeout(() => startOne(name, file), waitMs);
-      }
+      // ALWAYS restart: every child is a long-lived loop, so even a clean exit (code 0)
+      // is abnormal. 2026-06-11: the executor exited 0 at midnight and stayed dead for
+      // 12h while the bots kept running — shadow validation silently collected nothing.
+      const waitMs = Math.min(30000, Math.pow(2, state.attempt) * 1000);
+      console.error(`[${name}] exited with code ${code}, restart in ${waitMs}ms (attempt ${state.attempt})`);
+      logJsonl('all.jsonl', { t: NOW(), type: 'restart', name, code, attempt: state.attempt, waitMs });
+      setTimeout(() => startOne(name, file), waitMs);
     }
   });
 }

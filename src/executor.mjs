@@ -419,6 +419,15 @@ async function tick() {
   }
 }
 
+// Boot fingerprint: log the running code version once at startup. 2026-06-11: the executor
+// ran ALL DAY on stale pre-4f92745 code (old skip string in logs) and nobody could tell which
+// build was live. With this line, `head` of a session's executor.jsonl identifies the commit.
+let bootCommit = 'unknown';
+try {
+  bootCommit = (await import('node:child_process')).execSync('git rev-parse --short HEAD').toString().trim();
+} catch {}
+logJsonl('executor.jsonl', { t: NOW(), type: 'boot', commit: bootCommit, pid: process.pid, dryRun: CFG.dryRun, executionMode: CFG.executionMode });
+
 runLoop(async () => {
   try {
     await tick();
