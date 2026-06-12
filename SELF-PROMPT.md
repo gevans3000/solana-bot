@@ -230,3 +230,13 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
 - 2026-06-12 (TOOLING): tools/bt.mjs (single run, --thirds for walk-forward) and tools/sweep.mjs
   (grid with deltas + bear-break flags, all 8 datasets in one process, ~30s) are committed.
   PowerShell note: quote comma args (--data "1d,1h-540d") or PS splits them into separate argv.
+
+- 2026-06-12 (AUTOPILOT WIRED): full automation loop installed. (a) Cowork self-audit task fixed
+  (was pointing at the RETIRED Desktop clone since creation — every 3x-daily run was auditing a
+  stale path) and upgraded: now works ONE IDEAS-FOR-SONNET.md item per run with the full
+  validation bar, commits via alternate-index fallback, rewrites this file. (b) NEW
+  ensure-shadow.cmd (repo root): idempotent starter — George registers it in Windows Task
+  Scheduler (logon + hourly) and the stack self-starts forever; no more double-clicks. (c)
+  Watchdog now also checks the executor boot-line commit vs HEAD (stale-code detection, the
+  06-11 failure class). (d) CLAUDE.md has an AUTOPILOT section — the per-session protocol.
+  George's only remaining jobs: register the schtasks once, disable sleep, paid RPC, go-live OK.
