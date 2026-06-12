@@ -8,7 +8,10 @@
 #   node tools/sweep.mjs knob=v1,v2,v3 [knob2=...]        # all 8 datasets, ~30s total
 # Validation bar (HARD): bear (1d) >= 9.0; judge by 1h-540d + intraday mean (1h/15m/5m/1m),
 # NEVER by daily sets alone; winner needs smooth plateau + walk-forward thirds majority
-# (node tools/bt.mjs <knobs> --thirds --data "1h-540d,1d" — must win most segments incl. #3).
+# (node tools/bt.mjs <knobs> --thirds --data "1h-540d,1d" — must win most segments incl. #3)
+# + TWO-WINDOW (added 2026-06-12): must also hold on the PREVIOUS data window:
+#   node tools/bt.mjs <knobs> --git <last-data-refresh-commit>
+# (proven necessary: trail=14 fitted on fresh data scores bear 8.49 on the prior window).
 
 ## 1. MIN_SOL_RESERVE 0.005 (needs George's OK; re-validate on fresh data first)
 On the retired cached data 0.005 beat 0.01 everywhere and won all thirds. On 2026-06-12
@@ -97,3 +100,13 @@ fix data sourcing first, e.g. Binance klines API in backtest/fetch-data.mjs), re
 - regimeEmaSlow 50/55 on fresh data: 1h -7.3/-7.2. 45 confirmed. 40 neutral-ish (1h -0.01).
 - bullDipPct 0.6: 1h +0.25, 89 trades — but spike, not plateau (0.5 and 0.7 both negative).
   Possible frequency lead if it firms up after other changes; re-check with --thirds.
+
+## 10. Sell notional floor (MIN_SELL_NOTIONAL_MULT) — TESTED 2026-06-12: KEEP OFF
+Live finding: all 825 live rip-SELL signals are 0.01 SOL = $0.67 < MIN_TRADE_USDC, auto-skipped.
+Implemented gated floor (effSell >= minTradeUsdc*mult/price; parity backtest.mjs + bot-lib.mjs).
+Sweep mult 1.0-3.0: intraday mean +0.17..+0.57 BUT 1h -0.28..-0.42 and daily sets bleed hard
+(fresh window: 5yr -21..-54, full -16..-41; OLD window confirms: 5yr -35, full -20).
+VERDICT: skipping sub-$1 rip-sells IS the validated optimum — backtest skips them identically
+(parity already held), and live profit-taking flows through the executor trail/PT path which
+sells whole positions (not size-blocked). Knob ships default-0; enable only if SOL falls so far
+that trail/PT exits themselves drop under MIN_TRADE_USDC.

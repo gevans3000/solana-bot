@@ -113,6 +113,10 @@ export const CFG = {
   bearRipPct:      Math.max(0.01, num('BEAR_RIP_PCT', 0.5)),
   bearBuyUsdc:     Math.max(1,    num('BEAR_BUY_USDC', 15)),
   bearSellSol:     Math.max(0.001, num('BEAR_SELL_SOL', 0.15)),
+  // Floor SELL sizes so notional >= minTradeUsdc*mult (0 = off). Fixes 0.01-SOL sells
+  // being forever below MIN_TRADE_USDC at low SOL prices (found 2026-06-12: every live
+  // sell signal was $0.67 and auto-skipped).
+  minSellNotionalMult: Math.max(0, num('MIN_SELL_NOTIONAL_MULT', 0)),
   mockStartPrice:  Math.max(1,    num('MOCK_START_PRICE', 180)),
   mockDriftBps:    num('MOCK_DRIFT_BPS', 18),
   mockVolBps:      num('MOCK_VOL_BPS', 45),

@@ -289,3 +289,12 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
 - 2026-06-12 (CODEX P1 FIXED): fetch-data.mjs dropped in-flight bars; datasets are now
   closed-bar reproducible. 1h-540d re-baselined -0.17 -> +0.25 — the FIRST positive honest
   number — purely from removing the frozen partial 1h candle.
+
+- 2026-06-12 (SELL-SIZE 'BUG' WAS OPTIMAL + TWO-WINDOW VALIDATION ADOPTED): every live rip-SELL
+  (825 signals) is $0.67 < MIN_TRADE_USDC and auto-skipped — looked like the reason dry trades
+  never flow. Implemented MIN_SELL_NOTIONAL_MULT floor (full parity) and the data rejected it on
+  BOTH windows (daily sets bleed -16..-54pp; 1h flat) — the backtest skips those sells identically,
+  so sim/live were never out of parity, and live profit exits go through the executor trail/PT
+  path which sells whole positions. Knob ships default-0. Dry trades will come from BUYs (RSI
+  flush + bounce) and trail/PT exits — not rip-sells. NEW STANDARD: every knob change must hold
+  the bar on the previous data window too: node tools/bt.mjs <knobs> --git <prev-refresh-commit>.

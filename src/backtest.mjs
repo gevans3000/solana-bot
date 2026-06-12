@@ -58,6 +58,7 @@ export function paramsFromCfg(cfg = CFG) {
     bullTrailGivePct: cfg.bullTrailGivePct, bullMinSolHold: cfg.bullMinSolHold, bullProportionalSells: cfg.bullProportionalSells,
     bullStrongRegimePct: cfg.bullStrongRegimePct,
     bullMaxNotionalUsdc: cfg.bullMaxNotionalUsdc,
+    minSellNotionalMult: cfg.minSellNotionalMult,
   };
 }
 
@@ -181,10 +182,14 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
         // Option A: BULL rips sell the SOL amount last bought (symmetry), not a fixed 0.01.
         const strongUp = emaFast != null && emaSlow != null && emaSlow > 0
           && ((emaFast - emaSlow) / emaSlow) * 100 >= P.bullStrongRegimePct;
+        // Notional floor: a 0.01-SOL sell is < minTradeUsdc at low prices and the executor
+        // discards it — lift the sell size so it stays executable (gated, 0 = legacy).
+        const effSell = Math.max(botState.sellSol,
+          P.minSellNotionalMult > 0 ? (P.minTradeUsdc * P.minSellNotionalMult) / price : 0);
         const propSell = P.bullProportionalSells && botState.name === 'BULL' && strongUp
-          && botState.lastBuyAmountSol > 0 ? botState.lastBuyAmountSol : botState.sellSol;
+          && botState.lastBuyAmountSol > 0 ? botState.lastBuyAmountSol : effSell;
         botState._ripSellAmt = +Math.min(propSell, balances.sol - botState.minSolReserve).toFixed(6);
-        return botState._ripSellAmt >= botState.sellSol && balances.sol >= botState._ripSellAmt + botState.minSolReserve;
+        return botState._ripSellAmt >= effSell && balances.sol >= botState._ripSellAmt + botState.minSolReserve;
       })() &&
       (price >= sellTrigger || (rsiOverbought && price > botState.anchor))) {
     signal = { t: new Date(nowMs).toISOString(), bot: botState.name, side: 'SELL',

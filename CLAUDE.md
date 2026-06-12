@@ -49,7 +49,9 @@ The goal is zero routine George-actions. The loop:
 **Every ad-hoc session follows the same protocol:** read `SELF-PROMPT.md` first; verify the last
 commit landed (`git log -1`) and nothing is left unstaged; work ONE item from
 `IDEAS-FOR-SONNET.md` against the validation bar (bear >= 9.0%, judge by 1h-540d + intraday mean,
-walk-forward `--thirds`, smooth plateau); commit (alternate-index workaround if locks); rewrite
+walk-forward `--thirds`, smooth plateau, AND two-window: the change must also hold the bar on the
+previous data window via `node tools/bt.mjs <knobs> --git <prev-data-commit>` — single-window
+optima do not transfer); commit (alternate-index workaround if locks); rewrite
 `SELF-PROMPT.md` at the end. Record rejected ideas WITH numbers in `IDEAS-FOR-SONNET.md`.
 
 **Only George can do:** flip `DRY_RUN`/`EXECUTION_MODE` (go-live), approve `MIN_SOL_RESERVE=0.005`,

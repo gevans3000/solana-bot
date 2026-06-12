@@ -1,31 +1,51 @@
 #!/usr/bin/env node
 // tools/bt.mjs — fast backtest sweep runner.
 // Usage:
-//   node tools/bt.mjs [key=val ...] [--data name1,name2] [--thirds] [--json]
+//   node tools/bt.mjs [key=val ...] [--data name1,name2] [--thirds] [--json] [--git <rev>]
 // Keys are paramsFromCfg() fields (e.g. bullDipPct=0.6 bearRsiMax=30 cooldownSec=300).
 // --data takes short names (1d, 1h-540d, 15m-60d, 5m-30d, 1m-7d, 1d-5yr, 1d-full, 1d-bull).
 // --thirds runs each dataset in 3 equal time segments (walk-forward check).
+// --git <rev> loads datasets from that git commit instead of the working tree —
+//   TWO-WINDOW VALIDATION: every knob change must hold the bar on the current data AND
+//   on the previous window (e.g. --git HEAD~1 or the last data-refresh commit), because
+//   single-window optima have been shown not to transfer (2026-06-12: trail=14 scored
+//   bear 8.49 on the prior window — below the 9.0 floor it was fitted to restore).
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { paramsFromCfg, runBacktest, loadSeries } from '../src/backtest.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA = path.resolve(__dirname, '..', 'backtest', 'data');
+let DATA = path.resolve(__dirname, '..', 'backtest', 'data');
 
 const DEFAULT_SETS = ['1d', '1h-540d', '15m-60d', '5m-30d', '1m-7d', '1d-5yr', '1d-full', '1d-bull'];
 
 const args = process.argv.slice(2);
 const overrides = {};
-let sets = DEFAULT_SETS, thirds = false, asJson = false;
+let sets = DEFAULT_SETS, thirds = false, asJson = false, gitRev = null;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--data') { sets = args[++i].split(','); }
   else if (a === '--thirds') thirds = true;
   else if (a === '--json') asJson = true;
+  else if (a === '--git') gitRev = args[++i];
   else if (a.includes('=')) {
     const [k, v] = a.split('=');
     overrides[k] = v === 'true' ? true : v === 'false' ? false : +v;
   }
+}
+
+if (gitRev) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bt-git-'));
+  for (const s of sets) {
+    const blob = execFileSync('git', ['show', `${gitRev}:backtest/data/sol-usd-${s}.json`],
+      { cwd: path.resolve(__dirname, '..'), maxBuffer: 64 * 1024 * 1024 });
+    fs.writeFileSync(path.join(tmp, `sol-usd-${s}.json`), blob);
+  }
+  DATA = tmp;
+  console.log(`(datasets from git ${gitRev})`);
 }
 
 const P = { ...paramsFromCfg(), ...overrides };

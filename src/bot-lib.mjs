@@ -140,10 +140,13 @@ export async function botTick({ bot, dipPct, ripPct, buyUsdc, sellSol }) {
     // Option A parity: BULL rips sell the SOL amount last bought (symmetry) in strong bull.
     const strongUp = state.emaFast != null && state.emaSlow != null && state.emaSlow > 0
       && ((state.emaFast - state.emaSlow) / state.emaSlow) * 100 >= CFG.bullStrongRegimePct;
+    // Notional floor parity with backtest.mjs: keep sells >= minTradeUsdc*mult (gated, 0 = legacy).
+    const effSell = Math.max(sellSol,
+      CFG.minSellNotionalMult > 0 ? (CFG.minTradeUsdc * CFG.minSellNotionalMult) / price : 0);
     const propSell = (CFG.bullProportionalSells && bot === 'BULL' && strongUp && (state.lastBuyAmountSol || 0) > 0)
-      ? state.lastBuyAmountSol : sellSol;
+      ? state.lastBuyAmountSol : effSell;
     const ripSellAmt = +Math.min(propSell, balances.sol - CFG.minSolReserve).toFixed(6);
-    if (eligible && ripSellAmt >= sellSol && balances.sol >= ripSellAmt + CFG.minSolReserve &&
+    if (eligible && ripSellAmt >= effSell && balances.sol >= ripSellAmt + CFG.minSolReserve &&
         (price >= sellTrigger || (rsiOverbought && price > state.anchor))) {
     signal = {
       t: NOW(), bot, side: 'SELL',
