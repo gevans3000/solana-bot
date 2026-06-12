@@ -57,11 +57,13 @@ console.log('\nTest 1: Legacy mode (new features off) → +4.33% ±0.05');
     regimeEmaSlow: 50,          // pin legacy value: .env moved to 45 (2026-06-11 sweep) - legacy baseline must not drift
     bullDipPct: 0.5,            // pin legacy value: .env moved to 0.8 (2026-06-11 sweep)
     minSolReserve: 0.02,        // pin legacy value: .env moved to 0.01 (2026-06-11 reserve sweep)
+    trailGivePct: 10,           // pin legacy value: .env moved to 14 (2026-06-12 fresh-data re-opt; unused when trailInUptrend:false but pinned per rule)
+    bearRsiMax: 35,             // pin legacy value: .env moved to 30 (2026-06-12; unused when botSpecializationEnabled:false but pinned per rule)
   });
   const m = runBacktest(series, P);
   const r = m.returnPct;
-  assert('legacy return ≈ 4.33%', Math.abs(r - 4.33) <= 0.10,
-    `got ${r.toFixed(2)}% (expected 4.33 ±0.10)`);
+  assert('legacy return ≈ 6.68%', Math.abs(r - 6.68) <= 0.10,
+    `got ${r.toFixed(2)}% (expected 6.68 ±0.10)`);
 }
 
 // ── Test 2: New defaults → ≥ +9.0% ───────────────────────────────────────────

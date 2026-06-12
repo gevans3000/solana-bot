@@ -2,23 +2,25 @@
 # Each run READS this at start and REWRITES at end.
 
 ## Focus for the next run (do this first)
-- **FIRST: verify the shadow stack is UP and on current code.** Check executor.jsonl: the current
-  session must start with a `"type":"boot"` line whose `commit` matches `git rev-parse --short HEAD`
-  (c4b9ac3 or newer), `tick` lines every ~10s, and (eventually) `dry_run_trade` entries. The
-  2026-06-12 session restarted it via start-shadow.cmd after applying MIN_SOL_RESERVE=0.01 — if it
-  is down again, that is the #1 blocker.
-- Baseline to confirm: `npm run test:all` green (23 unit + 10 selftest); bear 10.42%, 1h-540d
-  -6.37% (45 trades), 15m 1.17, 5m -1.37, 1m -1.22, 5yr 185.09, full 96.13, bull 93.73.
-  Knobs: MIN_SOL_RESERVE=0.01 (new), BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45, ENTRY_BOUNCE_CONFIRM=true.
-- **Do NOT re-sweep single knobs** — the 2026-06-12 session swept all 17 (singles + combos);
-  config is at a local optimum. Work from IDEAS-FOR-SONNET.md instead (ranked, with commands).
-  Top untested idea: block BUYS while regimeStrength <= -X (idea #2). Diagnostic first: idea #5
-  (simStartSol=0) to learn whether 1h's remaining -6.37 is inventory drag or entry quality.
-- Data refresh is BROKEN everywhere (Yahoo HTTP 451 even from George's machine, not just the
-  sandbox). Fixing fetch (Binance klines, idea #8) unlocks fresh walk-forward data — high value.
-- Do NOT propose DRY_RUN=0 until several days of clean dry_run_trade logs with bounce-confirm active.
-- Remaining go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow -> one tiny live trade
-  (George's explicit OK required, DRY_RUN stays 1 until then).
+- **Stack check:** executor.jsonl current session must have a `boot` line matching
+  `git rev-parse --short HEAD` and fresh `tick`s. Watchdog tasks ARE registered
+  (SolanaBot-Shadow-Logon + SolanaBot-Shadow-Hourly -> ensure-shadow.cmd), so a dead stack
+  self-heals within the hour. NOTE: a RUNNING executor does not reload .env — the stack was
+  restarted 2026-06-12 ~03:30Z to load TRAIL_GIVE_PCT=14/BEAR_RSI_MAX=30; verify its boot
+  line is on the fresh-data commit or newer. Report dry_run_trade count (0 as of 03:00Z;
+  with BEAR_RSI_MAX=30 dry trades need a deeper RSI flush — patience, not a bug).
+- **BASELINES (FRESH Coinbase data, 2026-06-12 — all cached-data numbers are obsolete):**
+  bear(1d) 15.08 | 1h-540d -0.17 (73 tr) | 15m 1.13 | 5m -3.37 | 1m -1.06 | 5yr 174.11 |
+  full 86.42 | bull 82.94 | legacy Test 1 pin 6.68. Knobs: TRAIL_GIVE_PCT=14, BEAR_RSI_MAX=30,
+  MIN_SOL_RESERVE=0.01, BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45, ENTRY_BOUNCE_CONFIRM=true.
+- **Data is refreshable now**: `node backtest/fetch-data.mjs` (Coinbase primary, ~40s). Refresh
+  before any tuning session; the bear window ROLLS — expect baseline drift, re-pin Test 1 when
+  it moves. After refresh, re-run tools/bt.mjs and update the table above.
+- Next structural work: IDEAS-FOR-SONNET.md #2b (FAST crash detector — the June-2026 leg is
+  the one segment the bot loses to hold) and #5 (simStartSol=0 diagnostic).
+- Do NOT propose DRY_RUN=0 until several days of clean dry_run_trade logs.
+- Go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow -> one tiny live trade (George's
+  explicit OK; DRY_RUN stays 1 until then).
 
 ## Running lessons (append; never delete)
 - 2026-06-05: Edit/Write tool truncates src/*.mjs on this mount — always edit from shell + node --check.
@@ -240,3 +242,37 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
   Watchdog now also checks the executor boot-line commit vs HEAD (stale-code detection, the
   06-11 failure class). (d) CLAUDE.md has an AUTOPILOT section — the per-session protocol.
   George's only remaining jobs: register the schtasks once, disable sleep, paid RPC, go-live OK.
+
+- 2026-06-12 night (DATA UNLOCKED + BASELINE DRIFT — CRITICAL): fetch-data.mjs rewritten to a
+  provider chain (Coinbase primary — the 451 was BINANCE geo-blocking US IPs, not Yahoo; Yahoo was
+  replaced earlier). All 8 sets refreshed through 2026-06-12; old pre-listing history preserved on
+  1d-full/1d-5yr. SOURCE VALIDATED: old bear window from Coinbase = 10.40% vs 10.42% cached (bit-
+  near-identical). BUT the ROLLING bear window now returns 2.08% (floor 9.0 BROKEN by the market):
+  SOL fell ~19% over 2026-06-01..06-12 and the current config bleeds in that fresh leg. 1h-540d
+  flipped to -0.58% (was -6.37). All cached-data baselines are obsolete; selftest Test 1/2 red
+  until re-pinned/re-optimized (in progress this session).
+
+- 2026-06-12 night (FRESH-DATA RE-OPT APPLIED): TRAIL_GIVE_PCT 10->14 + BEAR_RSI_MAX 35->30.
+  The June 2026 crash (SOL ~-19% in 12d) rolled into the bear window and broke the floor
+  (10.4 -> 2.08 with old knobs). Trail 14 restores it to 15.08 (plateau 13-16; even 17-25 holds
+  ~9); bearRsiMax 30 lifts 1h to -0.17 with daily sets bit-identical (flat plateau 25-32).
+  Combo walk-forward: 1h wins/ties all thirds; bear wins 2/3 (the June leg itself stays weak —
+  see IDEAS #2b). Tests re-pinned (legacy 4.33 -> 6.68, pure data effect) and green 23+10.
+- 2026-06-12 (IDEA #2 DEAD): regimeBuyBlockPct = exact 0.00 at X=3..15 on all 8 fresh sets.
+  Downtrend buys are already sizing-suppressed (regimeSizeDownMult 0.75 x 1 USDC < minTrade 1);
+  the crash buys fire while lagging EMA-45 regime is still > -3%. Lagging-EMA gates cannot
+  catch fast crashes — hence #2b (price-vs-recent-high crash detector).
+- 2026-06-12 (DATA PIPELINE): the HTTP 451 was BINANCE geo-blocking US IPs (fetch-data.mjs had
+  already been switched to Binance; Yahoo was long gone). Rewrote to a provider chain:
+  Coinbase Exchange primary (300/req, all granularities, SOL-USD since mid-2021, descending
+  arrays = the exact schema loadSeries already parses), Binance global then Binance.US fallback.
+  Old pre-listing candles are preserved by prepending from the existing file (1d-full keeps
+  Jan-2021 start). Source equivalence validated: identical window Coinbase vs Yahoo-cache =
+  10.40 vs 10.42. Refresh is ~145 requests, ~40s, rate-limited 200ms.
+- 2026-06-12 (ROLLING-WINDOW LESSON): the bear floor is defined on a ROLLING 311d window — a
+  market move can break it with zero config change (2.08 was the market, not a regression).
+  After every refresh: re-baseline, re-pin legacy Test 1 (4.33 -> 6.68 this time), and expect
+  the optimum to move. Never compare returns across refreshes as if same-units.
+- 2026-06-12 (AUTOPILOT COMPLETE): SolanaBot-Shadow-Logon + SolanaBot-Shadow-Hourly registered
+  via schtasks (current-user, no admin needed) -> ensure-shadow.cmd. Stack now survives
+  reboot/sleep/crash with zero George actions.

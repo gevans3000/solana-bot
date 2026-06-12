@@ -10,22 +10,31 @@
 # NEVER by daily sets alone; winner needs smooth plateau + walk-forward thirds majority
 # (node tools/bt.mjs <knobs> --thirds --data "1h-540d,1d" — must win most segments incl. #3).
 
-## 1. MIN_SOL_RESERVE 0.005 (validated, deliberately not taken — needs George's OK)
-0.005 beats the applied 0.01 on every metric: 1h -6.37 -> -6.02, bear 10.42 -> 10.92,
-and wins ALL walk-forward thirds. We kept 0.01 for live gas/rent margin (0.005 SOL ~ $0.75).
+## 1. MIN_SOL_RESERVE 0.005 (needs George's OK; re-validate on fresh data first)
+On the retired cached data 0.005 beat 0.01 everywhere and won all thirds. On 2026-06-12
+fresh data (pre-trail-fix baseline) it was still directionally good: 1h +0.31, bear +0.44,
+intraday +0.18. Re-run the full bar under the new TRAIL_GIVE_PCT=14/BEAR_RSI_MAX=30 config.
+We keep 0.01 for live gas/rent margin (0.005 SOL ~ $0.75).
 If George okays the thinner reserve:
   node tools/bt.mjs minSolReserve=0.005 --thirds --data "1h-540d,1d"
 Then: sed MIN_SOL_RESERVE in .env + .env.example. The legacy pin in selftest Test 1 stays
 0.02 (that is the historical legacy value, it does not track .env). Re-run npm run test:all.
 
-## 2. Block BUYS while regime is deeply negative (regime detection, backlog #3)
-A regime-breakdown EXIT (sell all when regimeStrength <= -X%) was probed and is NEUTRAL at
-X>=5 — trail/stops already empty the position by then. But the bot KEEPS BUYING during a
--71% collapse (BEAR bot buys every RSI<35 flush); those buys + their stop-losses are the
-remaining bleed on 1h-540d. Untested variant: suppress all BUY signals while
-regimeStrength <= -X (sweep X = 3,5,8,10,15). Implement as gated knob (default 0=off) inside
-botTick (it has emaFast/emaSlow), backtest.mjs first; wire bot-lib parity only if it validates.
-This is the highest-expected-value untested idea.
+## 2. Block BUYS while regime is deeply negative — TESTED 2026-06-12: DEAD
+Probed as gated knob regimeBuyBlockPct (suppress buyAllowed when regimeStrength <= -X) and
+swept X=3,5,8,10,15 on FRESH data: delta is EXACTLY 0.00 on all 8 datasets at every X.
+Two reasons: (a) downtrend buys are already suppressed by sizing — regimeSizeDownMult(0.75)
+x bearBuyUsdc(1) < minTradeUsdc(1) kills the signal unless RSI-scale lifts it; (b) in the
+June 2026 crash the buys fire EARLY, while the lagging EMA-45 regime is still > -3%.
+LESSON: a lagging-EMA gate cannot catch a fast crash. The successor idea is #2b below.
+
+## 2b. FAST crash detector (untested, now the top structural idea)
+The newest bear third (June 2026 leg, SOL -19% in 12d) is the one segment where even the
+re-optimized config loses (bear #3: -1.09% vs +1.36 baseline; 1h June tail: bot -10.28%,
+vsHold -1.73 — it underperforms HOLD only in that leg). EMA-45 lags ~weeks; a crash detector
+must react in days: e.g. block buys / tighten the trail when price < 0.9 x max(close, last
+N bars) (N~5-10 daily bars), or when N-day return < -15%. Gated knob, default off,
+backtest.mjs probe first. Judge on bear thirds (#3 must improve) + 1h + intraday mean.
 
 ## 3. Conflict resolution by edge (executor decide())
 decide() returns NO_TRADE when BULL and BEAR disagree (180s window). 2026-06-11 live analysis:
@@ -74,3 +83,13 @@ fix data sourcing first, e.g. Binance klines API in backtest/fetch-data.mjs), re
   (runBacktest already tracks peakEquity/maxDD — expose to sizing).
 - Replace Yahoo data source (HTTP 451 everywhere now): Binance klines (SOLUSDT) has 1m..1d,
   free, no key, 1000-candle pages. Rewrite backtest/fetch-data.mjs; keeps datasets refreshable.
+
+## 9. Tested 2026-06-12 on fresh data — verdicts with numbers (do not re-test blind)
+- APPLIED: TRAIL_GIVE_PCT 10->14 (bear 2.08->15.08, plateau 13-16, 17-20 still 9.66; 1h -0.07)
+  + BEAR_RSI_MAX 35->30 (flat plateau 25-32, all identical: 1h -0.65->-0.17, +4 trades,
+  daily sets bit-identical). Combo thirds: 1h wins/ties all 3; bear wins 2/3 (loses June leg).
+- stopLossPct tighter: 5 -> 1d-full 86->31 (-55pp), 4 -> 5yr 174->84. DEAD on daily sets.
+- entryBounceConfirm=false on fresh data: 1h -0.65 -> -7.72. Bounce-confirm is still load-bearing.
+- regimeEmaSlow 50/55 on fresh data: 1h -7.3/-7.2. 45 confirmed. 40 neutral-ish (1h -0.01).
+- bullDipPct 0.6: 1h +0.25, 89 trades — but spike, not plateau (0.5 and 0.7 both negative).
+  Possible frequency lead if it firms up after other changes; re-check with --thirds.
