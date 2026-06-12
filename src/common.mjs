@@ -97,6 +97,7 @@ export const CFG = {
   intrabarStops:   bool('INTRABAR_STOPS', true),
   anchorCooldownBars: Math.max(0, num('ANCHOR_COOLDOWN_BARS', 2)),
   entryBounceConfirm: bool('ENTRY_BOUNCE_CONFIRM', false),
+  conflictEdgeResolution: bool('CONFLICT_EDGE_RESOLUTION', false), // #3: on BULL/BEAR conflict, pick signal with larger |edgeBps| instead of NO_TRADE
   botSpecializationEnabled: bool('BOT_SPECIALIZATION_ENABLED', true),
   bearRsiMax:      Math.max(1, num('BEAR_RSI_MAX', 35)),
   bullRegimeThreshold: Math.max(0, num('BULL_REGIME_THRESHOLD', 7.0)),

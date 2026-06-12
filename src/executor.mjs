@@ -72,7 +72,12 @@ function decide(signals) {
   const bear = latestByBot.get('BEAR') || null;
 
   if (bull && bear && bull.side !== bear.side) {
-    return { action: 'NO_TRADE', reason: 'bot conflict', bull, bear };
+    if (!CFG.conflictEdgeResolution) return { action: 'NO_TRADE', reason: 'bot conflict', bull, bear };
+    // pick the signal with the larger |edgeBps| — default OFF, enable with CONFLICT_EDGE_RESOLUTION=true
+    const chosen2 = Math.abs(bull.edgeBps ?? 0) >= Math.abs(bear.edgeBps ?? 0) ? bull : bear;
+    if (chosen2.edgeBps == null || chosen2.edgeBps < CFG.minExpectedEdgeBps)
+      return { action: 'NO_TRADE', reason: 'edge below minimum', chosen: chosen2 };
+    return { action: 'TRADE', chosen: chosen2, bull, bear, conflictResolved: true };
   }
 
   const chosen = bear || bull;
