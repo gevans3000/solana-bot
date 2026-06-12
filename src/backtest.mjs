@@ -59,6 +59,7 @@ export function paramsFromCfg(cfg = CFG) {
     bullStrongRegimePct: cfg.bullStrongRegimePct,
     bullMaxNotionalUsdc: cfg.bullMaxNotionalUsdc,
     minSellNotionalMult: cfg.minSellNotionalMult,
+    conflictEdgeResolution: cfg.conflictEdgeResolution,
   };
 }
 
@@ -208,12 +209,19 @@ function botTick(botState, price, nowMs, balances, emaFast, prevEmaFast, emaSlow
 }
 
 // ---- executor decision -------------------------------------------------------
-function decide(signals, minEdgeBps) {
+function decide(signals, minEdgeBps, conflictEdgeResolution) {
   if (!signals.length) return { action: 'NO_TRADE', reason: 'no signals' };
   const map = new Map();
   for (const s of signals) map.set(s.bot, s);
   const bull = map.get('BULL') || null, bear = map.get('BEAR') || null;
-  if (bull && bear && bull.side !== bear.side) return { action: 'NO_TRADE', reason: 'bot conflict' };
+  if (bull && bear && bull.side !== bear.side) {
+    if (!conflictEdgeResolution) return { action: 'NO_TRADE', reason: 'bot conflict' };
+    // parity with executor.mjs decide(): pick the signal with the larger |edgeBps|
+    const chosen2 = Math.abs(bull.edgeBps ?? 0) >= Math.abs(bear.edgeBps ?? 0) ? bull : bear;
+    if (chosen2.edgeBps == null || chosen2.edgeBps < minEdgeBps)
+      return { action: 'NO_TRADE', reason: 'edge below minimum' };
+    return { action: 'TRADE', chosen: chosen2 };
+  }
   const chosen = bear || bull;
   if (!chosen) return { action: 'NO_TRADE', reason: 'no usable signal' };
   if (chosen.edgeBps == null || chosen.edgeBps < minEdgeBps) return { action: 'NO_TRADE', reason: 'edge below minimum' };
@@ -385,7 +393,7 @@ export function runBacktest(series, P) {
 
     const cutoff = nowMs - P.staleSignalSec * 1000;
     recentSignals = recentSignals.filter(s => new Date(s.t).getTime() >= cutoff);
-    const dec = decide(recentSignals, P.minExpectedEdgeBps);
+    const dec = decide(recentSignals, P.minExpectedEdgeBps, P.conflictEdgeResolution);
 
     if (dec.action === 'TRADE') {
       const sig = dec.chosen;

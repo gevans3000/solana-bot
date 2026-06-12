@@ -60,6 +60,7 @@ console.log('\nTest 1: Legacy mode (new features off) → +4.33% ±0.05');
     trailGivePct: 10,           // pin legacy value: .env moved to 14 (2026-06-12 fresh-data re-opt; unused when trailInUptrend:false but pinned per rule)
     bearRsiMax: 35,             // pin legacy value: .env moved to 30 (2026-06-12; unused when botSpecializationEnabled:false but pinned per rule)
     minSellNotionalMult: 0,     // pin: new gated knob (2026-06-12), off in .env too — rejected on both windows
+    conflictEdgeResolution: false, // pin: gated knob (2026-06-12), off in .env
   });
   const m = runBacktest(series, P);
   const r = m.returnPct;

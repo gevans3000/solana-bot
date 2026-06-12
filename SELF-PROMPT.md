@@ -2,28 +2,29 @@
 # Each run READS this at start and REWRITES at end.
 
 ## Focus for the next run (do this first)
-- **Stack check:** executor.jsonl current session must have a `boot` line matching
-  `git rev-parse --short HEAD` and fresh `tick`s. Watchdog tasks ARE registered
-  (SolanaBot-Shadow-Logon + SolanaBot-Shadow-Hourly -> ensure-shadow.cmd), so a dead stack
-  self-heals within the hour. NOTE: a RUNNING executor does not reload .env — the stack was
-  restarted 2026-06-12 ~03:30Z to load TRAIL_GIVE_PCT=14/BEAR_RSI_MAX=30; verify its boot
-  line is on the fresh-data commit or newer. Report dry_run_trade count (0 as of 03:00Z;
-  with BEAR_RSI_MAX=30 dry trades need a deeper RSI flush — patience, not a bug).
-- **BASELINES (FRESH Coinbase data, closed bars only, 2026-06-12):**
-  bear(1d) 15.08 | 1h-540d +0.25 (73 tr, FIRST POSITIVE) | 15m 1.12 | 5m -3.43 | 1m -0.95 |
-  5yr 174.10 | full 86.42 | bull 82.94 | legacy Test 1 pin 6.68. Knobs: TRAIL_GIVE_PCT=14,
-  BEAR_RSI_MAX=30, MIN_SOL_RESERVE=0.01, BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45,
-  ENTRY_BOUNCE_CONFIRM=true. fetch-data.mjs now EXCLUDES in-flight bars (Codex P1 fix) —
-  refreshes are reproducible; numbers only move when a bar actually closes.
-- **Data is refreshable now**: `node backtest/fetch-data.mjs` (Coinbase primary, ~40s). Refresh
-  before any tuning session; the bear window ROLLS — expect baseline drift, re-pin Test 1 when
-  it moves. After refresh, re-run tools/bt.mjs and update the table above.
-- Next structural work: IDEAS-FOR-SONNET.md #5 (simStartSol=0 diagnostic) and #3 (conflict
-  resolution by edge). #2b crash detector is DEAD (both variants, tested 2026-06-12 — see
-  IDEAS #2b for numbers; do not re-probe without a fundamentally different mechanism).
-- Do NOT propose DRY_RUN=0 until several days of clean dry_run_trade logs.
-- Go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow -> one tiny live trade (George's
-  explicit OK; DRY_RUN stays 1 until then).
+- **Stack check:** executor.jsonl boot line must match `git rev-parse --short HEAD` (currently
+  ebcf2e3). Stack is running as of 2026-06-12 ~12:11Z, booted on 8004293 — next restart will
+  pick up ebcf2e3 (CONFLICT_EDGE_RESOLUTION knob). Check for `conflictResolved:true` in
+  executor.jsonl — if conflicts are being resolved, analyze whether they were profitable before
+  enabling CONFLICT_EDGE_RESOLUTION=true in .env.
+- **BASELINES (2026-06-12 Coinbase closed-bar data):**
+  bear(1d) 15.08 | 1h-540d +0.25 (73 tr) | 15m 1.12 | 5m -3.43 | 1m -0.95 |
+  5yr 174.10 | full 86.42 | bull 82.94. Knobs: TRAIL_GIVE_PCT=14, BEAR_RSI_MAX=30,
+  MIN_SOL_RESERVE=0.01, BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45, ENTRY_BOUNCE_CONFIRM=true.
+- **Data: refreshable from George's machine ONLY** (`node backtest/fetch-data.mjs`, Coinbase
+  provider chain, ~40s, closed bars only — already rewritten, IDEAS #8 is DONE). The SANDBOX
+  cannot reach Coinbase/Binance/Yahoo (all blocked) — sandbox sessions must NOT claim data is
+  frozen globally; native sessions refresh before tuning and re-pin Test 1 if drifted.
+- **Next actionable ideas (ranked):**
+  1. IDEAS #3 shadow analysis: grep executor.jsonl for 'bot conflict' + conflictResolved
+     events; enable CONFLICT_EDGE_RESOLUTION=true only if resolved conflicts would have been
+     profitable. Parity is COMPLETE (backtest.mjs decide() mirrors executor since 2026-06-12;
+     flag ON is bit-identical on all backtest sets — conflicts only coexist in the LIVE window).
+  2. IDEAS #4: bounceBypassRsi — retest when regime changes or new data available
+  3. IDEAS #1: MIN_SOL_RESERVE=0.005 — needs George's OK; re-validate on fresh data first
+- #5 diagnostic DONE: starting 0.5 SOL inventory dominates returns (bear 15%→-0.7% with no SOL)
+- Do NOT propose DRY_RUN=0 until several days of dry_run_trade logs.
+- Go-live gaps: (1) paid RPC (George/Helius); (2) one tiny live trade (George's explicit OK).
 
 ## Running lessons (append; never delete)
 - 2026-06-05: Edit/Write tool truncates src/*.mjs on this mount — always edit from shell + node --check.
@@ -157,6 +158,17 @@
 
 - 2026-06-07: Codex caught that the 1h-540d guard was post-loop (best already chosen by mean-upside). Fixed to filter inside loop. Then found the overall-mean gate still let daily-candle-dominated candidates through (th=8/up=2/dn=0.5 +11.89pp overall, Δ0.00pp intraday). Fix: candidateBetter now requires intraday mean improvement >= MIN_GAIN_PP. The self-audit gate now has 3 layers and is daily-candle-proof.
 
+- 2026-06-12 (SCHEDULED AUDIT — TRUNCATION RECOVERY + IDEAS #3 + #5):
+  Found ALL 19 working-tree files truncated vs HEAD (Edit-tool mount hazard from prior session).
+  Restored all from HEAD before doing any new work. Stack healthy: boot 8004293=HEAD, ticking
+  every 10s, 0 dry_run_trades (expected — BEAR_RSI_MAX=30 waits for RSI<30 flush), 0 new errors.
+  DIAGNOSTIC #5 (simStartSol=0): starting 0.5 SOL inventory is the dominant return driver —
+  bear 15.08%→-0.69% with no SOL, 5yr 174%→19%. True entry alpha from pure USDC is near-zero
+  in choppy markets. Inventory management (initial SOL position size) is the next lever.
+  IDEA #3 (conflict resolution): implemented CONFLICT_EDGE_RESOLUTION gated knob in executor.mjs
+  (commit ebcf2e3, default-off). Key finding: conflicts CANNOT be backtested (180s stale window
+  < 3600s bar interval — BULL+BEAR never coexist in hourly data). Must shadow-validate: look for
+  'conflictResolved:true' in executor.jsonl after stack restarts on new commit.
 ## How to rewrite this file at the end of a run
 Keep sections. Check off completed items, set next focus, append lessons. Never trade/move funds/change
 EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, tests green, bear >= 9.0%.
@@ -298,3 +310,13 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
   path which sells whole positions. Knob ships default-0. Dry trades will come from BUYs (RSI
   flush + bounce) and trail/PT exits — not rip-sells. NEW STANDARD: every knob change must hold
   the bar on the previous data window too: node tools/bt.mjs <knobs> --git <prev-refresh-commit>.
+
+- 2026-06-12 (PARITY BREAK FIXED, Codex P2): the 12:11Z audit session shipped conflict-edge-
+  resolution in executor.mjs ONLY ("cannot validate via backtest") and left a confusing staged
+  revert + stale locks. Resolution: revert unstaged (feature kept), backtest.mjs decide() now
+  mirrors executor exactly (flag threaded through paramsFromCfg), pinned in legacy Test 1,
+  CONFLICT_EDGE_RESOLUTION=false in .env/.env.example. Flag ON is bit-identical on all 8 sets —
+  in backtests both bots emit the same side in the same bar, so opposing conflicts only exist
+  live (180s window spans ~18 ticks). The enable decision needs SHADOW evidence, not backtests.
+  LESSON: "cannot validate via backtest" is not a reason to skip parity — wire the flag anyway
+  so the sim describes the same strategy the executor runs.

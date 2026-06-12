@@ -43,12 +43,13 @@ VERDICT: the June-leg weakness is the cost of being long-biased through a fast l
 crash heuristics on THIS strategy either never fire usefully or whipsaw. Do not re-probe
 without a fundamentally different mechanism (e.g. hedging, or regime-scaled position caps).
 
-## 3. Conflict resolution by edge (executor decide())
-decide() returns NO_TRADE when BULL and BEAR disagree (180s window). 2026-06-11 live analysis:
-every BEAR BUY that day was killed by 3-5 BULL SELLs in-window. Variant: on conflict, take the
-signal with the larger |edgeBps| instead of dropping both. Gated knob, change decide() in
-backtest.mjs (threading a flag), parity in executor.mjs decide(). More trades + uses information
-already computed. Risk: the conflict gate may BE the edge — validate hard.
+## 3. Conflict resolution by edge — IMPLEMENTED 2026-06-12, shadow-validate only (commit ebcf2e3)
+Wired CONFLICT_EDGE_RESOLUTION=false (gated default-off) in executor.mjs decide(). On conflict,
+picks the signal with larger |edgeBps| instead of NO_TRADE. Backtest cannot validate: the 180s
+stale window < 3600s bar interval means BULL+BEAR signals NEVER coexist in historical data —
+conflicts only occur in the live 10s-tick loop. Enable with CONFLICT_EDGE_RESOLUTION=true in .env
+AFTER reviewing shadow.jsonl for conflict events and confirming they'd have been profitable. If
+executor.jsonl shows 'conflictResolved:true' dry trades, analyze those before enabling live.
 
 ## 4. bounceBypassRsi (rejected at 10s-granularity, retest on new data)
 Bypass ENTRY_BOUNCE_CONFIRM when RSI < 30 (catch V-bottom capitulation without waiting a bar).
@@ -60,13 +61,17 @@ that only bypasses for the BULL bot (uptrend context). Probe sed (backtest.mjs l
   node tools/sweep.mjs bounceBypassRsi=25,30,32
   git restore src/backtest.mjs   # if it fails again
 
-## 5. Measure pure strategy alpha (diagnostic, not a knob)
-The sim starts with 0.5 SOL whose cost basis enters as ~0 on the first BUY, so early "profit"
-and the first whole-position trail exit are partly phantom. Quantify how much of every
-dataset's return is starting-inventory artifact:
-  node tools/bt.mjs simStartSol=0 simStartUsdc=164 --data "1h-540d,1d,1d-5yr"
-If 1h flips strongly positive with simStartSol=0, the headline -6.37 is inventory drag, not
-strategy weakness — changes what to optimize next (inventory management, not entries).
+## 5. Measure pure strategy alpha — DONE 2026-06-12
+Results (simStartSol=0 simStartUsdc=164):
+  1h-540d: ret -0.46% trades 54 win 24%  (vs baseline 0.25%, 73 trades, 76% win)
+  1d bear: ret -0.69% trades 7  win 0%   (vs baseline 15.08%, 27 trades, 95% win)
+  1d-5yr:  ret 19.19% trades 50 win 60%  (vs baseline 174.10%, 72 trades, 58% win)
+INTERPRETATION: the starting 0.5 SOL inventory is a MAJOR contributor to backtest returns
+(especially bear +15% vs -0.7% with no SOL, and 5yr 174% vs 19% with no SOL). This does NOT
+mean the strategy is broken — the bot captures the held SOL's movements more efficiently than
+buy-and-hold (vs-hold numbers confirm this). But "true entry alpha" from pure USDC start is
+small/negative in choppy markets. Implication: inventory management (how much SOL to hold as
+base position) is a meaningful lever — currently fixed at 0.5 SOL by .env INITIAL_SOL.
 
 ## 6. Daily-candle-only winners (PARKED — do not apply on current data)
 These improve ONLY daily sets with intraday flat (the overfit signature the 3-layer gate
