@@ -2,11 +2,16 @@
 # Each run READS this at start and REWRITES at end.
 
 ## Focus for the next run (do this first)
-- **Stack check:** executor.jsonl boot line must match `git rev-parse --short HEAD` (currently
-  f422cac). Stack was LIVE at 12:11Z but has been DOWN since (~6h stale as of 18:11Z). Boot
-  commit shows 8004293 — stale code (pre-parity-fix). George must restart via start-shadow.cmd.
-  After restart: look for `boot` line with commit f422cac, then watch for `dry_run_trade` events
-  (BEAR_RSI_MAX=30 waits for RSI<30 flush; may take hours in choppy markets).
+- **JUPITER QUOTE 404 FIXED (2026-06-12 late):** the quote gate was 404ing on EVERY trade
+  attempt because shadow-quote.mjs/jupiter-swap.mjs POSTed to Ultra `/order` — it is a GET
+  with query params. Fixed (GET; taker only when a real pubkey — 'SimulatedWallet' 400s;
+  execute body is `{signedTransaction, requestId}`). Live-verified: BUY $2 and SELL 0.01 SOL
+  both return outAmount/priceImpactPct. Do NOT revert to POST.
+- **Stack check:** executor.jsonl boot line must match `git rev-parse --short HEAD` (the
+  quote-fix commit). Watch for the FIRST `dry_run_trade` ever (BEAR_RSI_MAX=30 waits for
+  RSI<30 flush; may take hours). Once trades flow: quote-basis analysis (signal.price vs
+  quote-implied exec price, shadow.jsonl pre_trade entries) — decides whether the +0.25%
+  honest 1h edge survives real costs.
 - **BASELINES (2026-06-12 Coinbase closed-bar data — valid on cached datasets):**
   bear(1d) 15.08 | 1h-540d +0.25 (73 tr) | 15m 1.12 | 5m -3.43 | 1m -0.95 |
   5yr 174.10 | full 86.42 | bull 82.94. Knobs: TRAIL_GIVE_PCT=14, BEAR_RSI_MAX=30,
@@ -328,3 +333,13 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
 - 2026-06-12 evening (IDEAS #4 FULLY DEAD): BULL-only bounceBypassRsi(30) tested — 1h-540d
   -4.53% (was +0.25%), bear 3.81% (floor broken). Knife-catching at capitulation is always wrong
   at fine granularity. Do not revisit without a different entry mechanism entirely.
+
+- 2026-06-12 late (JUPITER 404 ROOT CAUSE): the first 5 valid BUY decisions in project history
+  (e.g. BEAR $2, RSI 16.8, +82bps) all died at the quote step with HTTP 404 — Jupiter Ultra
+  `/order` is a GET endpoint; the code POSTed JSON. Same-day live tests: GET returns full quote
+  (priceImpactPct as string, requestId, transaction null without taker); POST = 404; invalid
+  taker = 400. Fixed in shadow-quote.mjs (GET, taker omitted unless base58 pubkey) and
+  jupiter-swap.mjs (order GET with taker required + transaction-null check; execute body
+  `{signedTransaction, requestId}` not `{transaction}`; execute status==='Failed' check).
+  Tests 23/23+10/10. LESSON: fail-closed worked exactly as designed — no trade was mispriced,
+  but the gate's own HTTP call was never integration-tested against the live API until now.

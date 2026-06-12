@@ -6,23 +6,21 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
   const confirmTimeout = 60000;
 
   try {
-    // Step 1: POST to /ultra/v1/order to get transaction
+    // Step 1: GET /ultra/v1/order to get transaction (POST returns HTTP 404 — found 2026-06-12).
+    // taker is required here: without it Jupiter returns transaction:null and there is nothing to sign.
     let quote;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), httpTimeout);
 
-      const response = await fetch('https://lite-api.jup.ag/ultra/v1/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wallet: walletKeypair.publicKey?.toBase58?.() || walletKeypair.publicKey,
-          inputMint: side === 'BUY' ? CFG.usdcMint : CFG.solMint,
-          outputMint: side === 'BUY' ? CFG.solMint : CFG.usdcMint,
-          amount: side === 'BUY' ? Math.floor(amount * 1e6) : Math.floor(amount * 1e9),
-          slippageBps: CFG.maxSlippageBps,
-          prioritizationFeeLamports: CFG.priorityFeeLamports,
-        }),
+      const params = new URLSearchParams({
+        inputMint: side === 'BUY' ? CFG.usdcMint : CFG.solMint,
+        outputMint: side === 'BUY' ? CFG.solMint : CFG.usdcMint,
+        amount: String(side === 'BUY' ? Math.floor(amount * 1e6) : Math.floor(amount * 1e9)),
+        slippageBps: String(CFG.maxSlippageBps),
+        taker: walletKeypair.publicKey?.toBase58?.() || String(walletKeypair.publicKey),
+      });
+      const response = await fetch(`https://lite-api.jup.ag/ultra/v1/order?${params}`, {
         signal: controller.signal,
       });
 
@@ -38,6 +36,9 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
         body = await response.json();
       } catch (parseError) {
         throw new Error(`Order response invalid JSON: ${parseError.message}`);
+      }
+      if (!body.transaction) {
+        throw new Error(`Order returned no transaction (error: ${String(body.error || body.errorMessage || 'none').slice(0, 80)})`);
       }
       quote = body;
     } catch (error) {
@@ -73,7 +74,8 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          transaction: signedTx,
+          signedTransaction: signedTx,
+          requestId: quote.requestId,
         }),
         signal: controller.signal,
       });
@@ -90,6 +92,9 @@ export async function executeJupiterSwap({ side, amount, walletKeypair }) {
         body = await response.json();
       } catch (parseError) {
         throw new Error(`Execute response invalid JSON: ${parseError.message}`);
+      }
+      if (body.status === 'Failed') {
+        throw new Error(`Execute failed: ${String(body.error || body.code || 'unknown').slice(0, 100)}`);
       }
       txResult = body;
     } catch (error) {
