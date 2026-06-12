@@ -28,13 +28,17 @@ x bearBuyUsdc(1) < minTradeUsdc(1) kills the signal unless RSI-scale lifts it; (
 June 2026 crash the buys fire EARLY, while the lagging EMA-45 regime is still > -3%.
 LESSON: a lagging-EMA gate cannot catch a fast crash. The successor idea is #2b below.
 
-## 2b. FAST crash detector (untested, now the top structural idea)
-The newest bear third (June 2026 leg, SOL -19% in 12d) is the one segment where even the
-re-optimized config loses (bear #3: -1.09% vs +1.36 baseline; 1h June tail: bot -10.28%,
-vsHold -1.73 — it underperforms HOLD only in that leg). EMA-45 lags ~weeks; a crash detector
-must react in days: e.g. block buys / tighten the trail when price < 0.9 x max(close, last
-N bars) (N~5-10 daily bars), or when N-day return < -15%. Gated knob, default off,
-backtest.mjs probe first. Judge on bear thirds (#3 must improve) + 1h + intraday mean.
+## 2b. FAST crash detector — TESTED 2026-06-12: BOTH VARIANTS DEAD
+Probed price-vs-rolling-high crash mode (crashDropPct x crashLookbackBars grid: drop 5-25,
+lookback 5-50) in two flavors:
+- BUY-BLOCK in crash mode: exact 0.00 on bear/1h/intraday everywhere (buys are $1-2 — they
+  were never the bleed; only daily-candle sets twitch, mixed).
+- EXIT-TO-RESERVE in crash mode: catastrophic wherever it fires — 5yr 174 -> 3..25,
+  full 86 -> 51..66, bull 83 -> 3..48, 1h -10.4 at drop=10. Selling into crashes misses
+  every V-recovery; the trail give-back already handles exits with better timing.
+VERDICT: the June-leg weakness is the cost of being long-biased through a fast leg down;
+crash heuristics on THIS strategy either never fire usefully or whipsaw. Do not re-probe
+without a fundamentally different mechanism (e.g. hedging, or regime-scaled position caps).
 
 ## 3. Conflict resolution by edge (executor decide())
 decide() returns NO_TRADE when BULL and BEAR disagree (180s window). 2026-06-11 live analysis:

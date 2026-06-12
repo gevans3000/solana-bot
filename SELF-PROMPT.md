@@ -18,8 +18,9 @@
 - **Data is refreshable now**: `node backtest/fetch-data.mjs` (Coinbase primary, ~40s). Refresh
   before any tuning session; the bear window ROLLS — expect baseline drift, re-pin Test 1 when
   it moves. After refresh, re-run tools/bt.mjs and update the table above.
-- Next structural work: IDEAS-FOR-SONNET.md #2b (FAST crash detector — the June-2026 leg is
-  the one segment the bot loses to hold) and #5 (simStartSol=0 diagnostic).
+- Next structural work: IDEAS-FOR-SONNET.md #5 (simStartSol=0 diagnostic) and #3 (conflict
+  resolution by edge). #2b crash detector is DEAD (both variants, tested 2026-06-12 — see
+  IDEAS #2b for numbers; do not re-probe without a fundamentally different mechanism).
 - Do NOT propose DRY_RUN=0 until several days of clean dry_run_trade logs.
 - Go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow -> one tiny live trade (George's
   explicit OK; DRY_RUN stays 1 until then).
@@ -278,3 +279,13 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
 - 2026-06-12 (AUTOPILOT COMPLETE): SolanaBot-Shadow-Logon + SolanaBot-Shadow-Hourly registered
   via schtasks (current-user, no admin needed) -> ensure-shadow.cmd. Stack now survives
   reboot/sleep/crash with zero George actions.
+
+- 2026-06-12 (IDEA #2b DEAD, full grid): fast crash detector (price below rolling N-bar high)
+  tested in both flavors on closed-bar fresh data. Buy-block: exact 0.00 (the $1-2 buys were
+  never the bleed). Exit-to-reserve: catastrophic (5yr 174 -> 3..25, bull 83 -> 3..48) — fast
+  exits whipsaw and miss V-recoveries; the armed trail already exits with better timing.
+  LESSON: this strategy's June-leg loss is the structural cost of long bias in a fast leg
+  down; heuristic crash timing cannot fix it from inside the current signal set.
+- 2026-06-12 (CODEX P1 FIXED): fetch-data.mjs dropped in-flight bars; datasets are now
+  closed-bar reproducible. 1h-540d re-baselined -0.17 -> +0.25 — the FIRST positive honest
+  number — purely from removing the frozen partial 1h candle.
