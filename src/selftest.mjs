@@ -56,6 +56,7 @@ console.log('\nTest 1: Legacy mode (new features off) → +4.33% ±0.05');
     entryBounceConfirm: false,
     regimeEmaSlow: 50,          // pin legacy value: .env moved to 45 (2026-06-11 sweep) - legacy baseline must not drift
     bullDipPct: 0.5,            // pin legacy value: .env moved to 0.8 (2026-06-11 sweep)
+    minSolReserve: 0.02,        // pin legacy value: .env moved to 0.01 (2026-06-11 reserve sweep)
   });
   const m = runBacktest(series, P);
   const r = m.returnPct;
