@@ -124,6 +124,16 @@ async function refresh(label, interval, startMs, endMs, outName) {
   console.log(`\n[${label}]`);
   const fresh = await fetchSeries(interval, startMs, endMs);
   if (!fresh.length) { console.warn(`  no data returned — keeping existing file`); return; }
+  // Drop bars that were still OPEN at fetch time — a partial candle frozen into the
+  // fixture makes the bear floor / legacy pin drift intraday and backtests non-reproducible
+  // (Codex review 2026-06-12, P1). A bar starting at T is closed only when T + interval <= now.
+  const barMs = CB_GRAN[interval] * 1000;
+  while (fresh.length && fresh[fresh.length - 1][0] * 1000 + barMs > Date.now()) {
+    console.log(`  dropped in-flight ${interval} bar @ ${new Date(fresh[fresh.length - 1][0] * 1000).toISOString()}`);
+    fresh.pop();
+  }
+  if (!fresh.length) { console.warn('  only in-flight data — keeping existing file'); return; }
+
   let rows = fresh;
   const firstFreshSec = fresh[0][0];
   if (firstFreshSec * 1000 > startMs + CB_GRAN[interval] * 2000) {     // window head missing

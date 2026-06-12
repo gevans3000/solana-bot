@@ -9,10 +9,12 @@
   restarted 2026-06-12 ~03:30Z to load TRAIL_GIVE_PCT=14/BEAR_RSI_MAX=30; verify its boot
   line is on the fresh-data commit or newer. Report dry_run_trade count (0 as of 03:00Z;
   with BEAR_RSI_MAX=30 dry trades need a deeper RSI flush — patience, not a bug).
-- **BASELINES (FRESH Coinbase data, 2026-06-12 — all cached-data numbers are obsolete):**
-  bear(1d) 15.08 | 1h-540d -0.17 (73 tr) | 15m 1.13 | 5m -3.37 | 1m -1.06 | 5yr 174.11 |
-  full 86.42 | bull 82.94 | legacy Test 1 pin 6.68. Knobs: TRAIL_GIVE_PCT=14, BEAR_RSI_MAX=30,
-  MIN_SOL_RESERVE=0.01, BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45, ENTRY_BOUNCE_CONFIRM=true.
+- **BASELINES (FRESH Coinbase data, closed bars only, 2026-06-12):**
+  bear(1d) 15.08 | 1h-540d +0.25 (73 tr, FIRST POSITIVE) | 15m 1.12 | 5m -3.43 | 1m -0.95 |
+  5yr 174.10 | full 86.42 | bull 82.94 | legacy Test 1 pin 6.68. Knobs: TRAIL_GIVE_PCT=14,
+  BEAR_RSI_MAX=30, MIN_SOL_RESERVE=0.01, BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45,
+  ENTRY_BOUNCE_CONFIRM=true. fetch-data.mjs now EXCLUDES in-flight bars (Codex P1 fix) —
+  refreshes are reproducible; numbers only move when a bar actually closes.
 - **Data is refreshable now**: `node backtest/fetch-data.mjs` (Coinbase primary, ~40s). Refresh
   before any tuning session; the bear window ROLLS — expect baseline drift, re-pin Test 1 when
   it moves. After refresh, re-run tools/bt.mjs and update the table above.
