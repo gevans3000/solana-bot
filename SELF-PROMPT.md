@@ -2,16 +2,20 @@
 # Each run READS this at start and REWRITES at end.
 
 ## Focus for the next run (do this first)
-- **FIRST: verify George restarted the stack via start-shadow.cmd.** Check in order:
-  (1) `git log -1` — HEAD must be NEWER than 4f92745 (the auto-commit of the staged batch);
-  (2) `.git/*.lock` gone; (3) executor.jsonl current session begins with a `"type":"boot"` line whose
-  `commit` matches `git rev-parse --short HEAD`; (4) `tick` lines every ~10s and eventually
-  `dry_run_trade` entries. If HEAD is still 4f92745 or no boot line: stack/commit still pending —
-  surface as the #1 blocker, do NOT write new code on top of the uncommitted batch.
-- Baseline to confirm: `npm run test:all` green (23 unit + 10 selftest), bear >= 9.0% (currently
-  9.48% with ENTRY_BOUNCE_CONFIRM=true, REGIME_EMA_SLOW=45, BULL_DIP_PCT=0.8). Proven knobs:
-  BULL_REGIME_THRESHOLD=7.0, REGIME_SIZE_UP_MULT=2.0, REGIME_SIZE_DOWN_MULT=0.75.
-- Integrity-check edited src files: `node --check src/*.mjs` (loop, not one-liner pipe).
+- **FIRST: verify the shadow stack is UP and on current code.** Check executor.jsonl: the current
+  session must start with a `"type":"boot"` line whose `commit` matches `git rev-parse --short HEAD`
+  (c4b9ac3 or newer), `tick` lines every ~10s, and (eventually) `dry_run_trade` entries. The
+  2026-06-12 session restarted it via start-shadow.cmd after applying MIN_SOL_RESERVE=0.01 — if it
+  is down again, that is the #1 blocker.
+- Baseline to confirm: `npm run test:all` green (23 unit + 10 selftest); bear 10.42%, 1h-540d
+  -6.37% (45 trades), 15m 1.17, 5m -1.37, 1m -1.22, 5yr 185.09, full 96.13, bull 93.73.
+  Knobs: MIN_SOL_RESERVE=0.01 (new), BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45, ENTRY_BOUNCE_CONFIRM=true.
+- **Do NOT re-sweep single knobs** — the 2026-06-12 session swept all 17 (singles + combos);
+  config is at a local optimum. Work from IDEAS-FOR-SONNET.md instead (ranked, with commands).
+  Top untested idea: block BUYS while regimeStrength <= -X (idea #2). Diagnostic first: idea #5
+  (simStartSol=0) to learn whether 1h's remaining -6.37 is inventory drag or entry quality.
+- Data refresh is BROKEN everywhere (Yahoo HTTP 451 even from George's machine, not just the
+  sandbox). Fixing fetch (Binance klines, idea #8) unlocks fresh walk-forward data — high value.
 - Do NOT propose DRY_RUN=0 until several days of clean dry_run_trade logs with bounce-confirm active.
 - Remaining go-live gaps: (1) paid RPC swap (George/Helius); (2) shadow -> one tiny live trade
   (George's explicit OK required, DRY_RUN stays 1 until then).
@@ -202,3 +206,27 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
   data refresh + self-healing shadow loop).
 - 2026-06-12: sandbox note — `nohup cmd &` dies when the bash call returns; `setsid nohup cmd &`
   survives. Needed for any in-sandbox run of self-audit longer than the 45s tool timeout.
+
+- 2026-06-12 (NATIVE SESSION POWERS): this session ran on George's actual Windows machine (Claude
+  Code, not the Cowork sandbox) — stale .git locks CAN be removed, commits CAN be pushed, and the
+  shadow stack CAN be started. The sandbox-only workarounds (alternate index, deferred commits)
+  are unnecessary in native sessions. Both pending batches committed+pushed (f67f07f, c4b9ac3).
+- 2026-06-12 (RESERVE WIN — the only one in a 17-knob exhaustive sweep): MIN_SOL_RESERVE 0.02->0.01.
+  Root cause: the unsellable reserve rode SOL -71.7% through the 1h-540d window — a structural
+  drag, not an entry/exit problem. 1h -7.12->-6.37, bear floor UP 9.48->10.42, 5yr/full +2pp each;
+  monotone plateau 0.005..0.018, wins ALL walk-forward thirds on 1h AND 1d. 0.005 is strictly
+  better still (1h -6.02, bear 10.92) but kept 0.01 for live gas/rent margin — George can OK 0.005.
+- 2026-06-12 (KNOB SPACE EXHAUSTED): all 17 strategy knobs swept (singles, then combos of every
+  near-winner) — everything else is neutral or worse. Recurring trap documented: ±0.2-0.3pp 1h
+  "wins" (rsiPeriod 18-24, rsiOverbought 75) are single-trade knife-edges that LOSE the middle
+  walk-forward third by ~3.7pp; their combo crashes 1h by -6.4pp. The walk-forward thirds check
+  catches in seconds what a plateau check misses.
+- 2026-06-12 (FREQUENCY GOAL UNMET, lead documented): bounceBypassRsi=30 (bypass bounce-confirm on
+  RSI<30 capitulation) gives +0.20pp AND +19 trades on 1h but monotonically degrades 5m/1m —
+  live runs at 10s granularity, so rejected. Variants in IDEAS-FOR-SONNET.md #4.
+- 2026-06-12 (YAHOO 451): data fetch is HTTP 451 (legally blocked) from George's machine too —
+  NOT a sandbox limitation. All validation is frozen on 2026-06-06 cache until fetch-data.mjs
+  moves to another source (Binance klines is free/keyless). This now caps all further tuning.
+- 2026-06-12 (TOOLING): tools/bt.mjs (single run, --thirds for walk-forward) and tools/sweep.mjs
+  (grid with deltas + bear-break flags, all 8 datasets in one process, ~30s) are committed.
+  PowerShell note: quote comma args (--data "1d,1h-540d") or PS splits them into separate argv.
