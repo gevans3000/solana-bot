@@ -51,15 +51,14 @@ conflicts only occur in the live 10s-tick loop. Enable with CONFLICT_EDGE_RESOLU
 AFTER reviewing shadow.jsonl for conflict events and confirming they'd have been profitable. If
 executor.jsonl shows 'conflictResolved:true' dry trades, analyze those before enabling live.
 
-## 4. bounceBypassRsi (rejected at 10s-granularity, retest on new data)
-Bypass ENTRY_BOUNCE_CONFIRM when RSI < 30 (catch V-bottom capitulation without waiting a bar).
-On 1h: +0.20pp AND +19 trades (45->64, win 87%) — exactly the frequency goal. REJECTED because
-5m/1m degrade monotonically (knife-catching at fine granularity, which live 10s polling
-resembles). Retest when intraday datasets covering a DIFFERENT regime exist, or try a variant
-that only bypasses for the BULL bot (uptrend context). Probe sed (backtest.mjs line ~171):
-  sed -i 's/price > botState.prevClose;/price > botState.prevClose || (P.bounceBypassRsi > 0 \&\& rsiVal != null \&\& rsiVal < P.bounceBypassRsi);/' src/backtest.mjs
-  node tools/sweep.mjs bounceBypassRsi=25,30,32
-  git restore src/backtest.mjs   # if it fails again
+## 4. bounceBypassRsi — FULLY DEAD (both variants tested 2026-06-12)
+Original (all-bots bypass): 1h +0.20pp, +19 trades BUT 5m/1m degrade monotonically. REJECTED.
+BULL-only variant (bypass only for BULL bot at RSI<30): tested 2026-06-12 evening.
+  1h-540d: -4.53% (was +0.25%) → -4.78pp CATASTROPHIC
+  1d bear: 3.81% (was 15.08%) → FLOOR BROKEN
+  Same knife-catching failure — BULL RSI<30 at 1h granularity = capitulation into extended
+  downmoves, not V-bottoms. Do NOT re-probe without a fundamentally different entry mechanism.
+VERDICT: Do not revisit. Close this line.
 
 ## 5. Measure pure strategy alpha — DONE 2026-06-12
 Results (simStartSol=0 simStartUsdc=164):

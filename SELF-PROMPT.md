@@ -3,26 +3,29 @@
 
 ## Focus for the next run (do this first)
 - **Stack check:** executor.jsonl boot line must match `git rev-parse --short HEAD` (currently
-  ebcf2e3). Stack is running as of 2026-06-12 ~12:11Z, booted on 8004293 — next restart will
-  pick up ebcf2e3 (CONFLICT_EDGE_RESOLUTION knob). Check for `conflictResolved:true` in
-  executor.jsonl — if conflicts are being resolved, analyze whether they were profitable before
-  enabling CONFLICT_EDGE_RESOLUTION=true in .env.
-- **BASELINES (2026-06-12 Coinbase closed-bar data):**
+  f422cac). Stack was LIVE at 12:11Z but has been DOWN since (~6h stale as of 18:11Z). Boot
+  commit shows 8004293 — stale code (pre-parity-fix). George must restart via start-shadow.cmd.
+  After restart: look for `boot` line with commit f422cac, then watch for `dry_run_trade` events
+  (BEAR_RSI_MAX=30 waits for RSI<30 flush; may take hours in choppy markets).
+- **BASELINES (2026-06-12 Coinbase closed-bar data — valid on cached datasets):**
   bear(1d) 15.08 | 1h-540d +0.25 (73 tr) | 15m 1.12 | 5m -3.43 | 1m -0.95 |
   5yr 174.10 | full 86.42 | bull 82.94. Knobs: TRAIL_GIVE_PCT=14, BEAR_RSI_MAX=30,
   MIN_SOL_RESERVE=0.01, BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45, ENTRY_BOUNCE_CONFIRM=true.
-- **Data: refreshable from George's machine ONLY** (`node backtest/fetch-data.mjs`, Coinbase
-  provider chain, ~40s, closed bars only — already rewritten, IDEAS #8 is DONE). The SANDBOX
-  cannot reach Coinbase/Binance/Yahoo (all blocked) — sandbox sessions must NOT claim data is
-  frozen globally; native sessions refresh before tuning and re-pin Test 1 if drifted.
+- **Data:** refreshable from George's machine ONLY (`node backtest/fetch-data.mjs`). Sandbox
+  cannot reach Coinbase — use --no-fetch in sandbox sessions.
+- **SANDBOX FILE HAZARD:** on every sandbox run, check data JSON files parse correctly before
+  running backtest (`node -e "JSON.parse(require('fs').readFileSync('backtest/data/sol-usd-1h-540d.json','utf8'));console.log('OK')"`)
+  — null-byte corruption recurs. Fix: `git cat-file -p HEAD:backtest/data/<file> > /tmp/fix && cp /tmp/fix backtest/data/<file>`.
 - **Next actionable ideas (ranked):**
-  1. IDEAS #3 shadow analysis: grep executor.jsonl for 'bot conflict' + conflictResolved
-     events; enable CONFLICT_EDGE_RESOLUTION=true only if resolved conflicts would have been
-     profitable. Parity is COMPLETE (backtest.mjs decide() mirrors executor since 2026-06-12;
-     flag ON is bit-identical on all backtest sets — conflicts only coexist in the LIVE window).
-  2. IDEAS #4: bounceBypassRsi — retest when regime changes or new data available
-  3. IDEAS #1: MIN_SOL_RESERVE=0.005 — needs George's OK; re-validate on fresh data first
-- #5 diagnostic DONE: starting 0.5 SOL inventory dominates returns (bear 15%→-0.7% with no SOL)
+  1. IDEAS #3 shadow analysis: wait for stack restart on f422cac, then grep executor.jsonl
+     for `conflictResolved:true` dry trades. Enable CONFLICT_EDGE_RESOLUTION=true ONLY after
+     seeing shadow evidence that resolved conflicts are profitable.
+  2. IDEAS #1: MIN_SOL_RESERVE=0.005 — re-tested 2026-06-12 evening: 1h-540d regresses
+     -0.23pp (0.25->0.02), FAILS 1h guard. Bear up +0.72pp. Do NOT apply without George's OK.
+  3. IDEAS #8 structural: replace Yahoo/Binance with Coinbase klines OR add multi-timeframe
+     regime signal (1h-trend agreement for 10s entries).
+- IDEAS #4 bounceBypassRsi: FULLY DEAD — both variants (all-bots + BULL-only) tested; BULL-only
+  crashes 1h to -4.53% and bear to 3.81%. Do not re-probe.
 - Do NOT propose DRY_RUN=0 until several days of dry_run_trade logs.
 - Go-live gaps: (1) paid RPC (George/Helius); (2) one tiny live trade (George's explicit OK).
 
@@ -316,7 +319,12 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
   revert + stale locks. Resolution: revert unstaged (feature kept), backtest.mjs decide() now
   mirrors executor exactly (flag threaded through paramsFromCfg), pinned in legacy Test 1,
   CONFLICT_EDGE_RESOLUTION=false in .env/.env.example. Flag ON is bit-identical on all 8 sets —
-  in backtests both bots emit the same side in the same bar, so opposing conflicts only exist
-  live (180s window spans ~18 ticks). The enable decision needs SHADOW evidence, not backtests.
-  LESSON: "cannot validate via backtest" is not a reason to skip parity — wire the flag anyway
-  so the sim describes the same strategy the executor runs.
+  in backtests both bots emit the same side i
+- 2026-06-12 evening (SANDBOX NULL-BYTE HAZARD DOCUMENTED): data JSON files accumulate null-byte
+  padding on the sandbox mount after cp overwrites — affects backtest/data/*.json and src/*.mjs.
+  Detection: `node -e "JSON.parse(require('fs').readFileSync(f,'utf8'))"` throws on null bytes.
+  Fix every session: `git cat-file -p HEAD:<file> > /tmp/fix && cp /tmp/fix <file>`. Restoring
+  from HEAD via git checkout is blocked by maintenance.lock (EPERM) — use cat-file workaround.
+- 2026-06-12 evening (IDEAS #4 FULLY DEAD): BULL-only bounceBypassRsi(30) tested — 1h-540d
+  -4.53% (was +0.25%), bear 3.81% (floor broken). Knife-catching at capitulation is always wrong
+  at fine granularity. Do not revisit without a different entry mechanism entirely.
