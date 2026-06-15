@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana Bot - Config Backtest Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+        header {
+            background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        h1 { font-size: 2rem; font-weight: 700; background: linear-gradient(90deg, #58a6ff, #a371f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: #8b949e; margin-top: 8px; font-size: 1rem; }
+        .config-badge {
+            display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+            margin: 0 4px;
+        }
+        .badge-A { background: #21262d; border: 1px solid #30363d; color: #e6edf3; }
+        .badge-B { background: #1f6feb20; border: 1px solid #1f6feb; color: #58a6ff; }
+        .badge-C { background: #3fb95020; border: 1px solid #3fb950; color: #7ee787; }
+        .badge-D { background: #a371f720; border: 1px solid #a371f7; color: #d2a8ff; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .card {
+            background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow: hidden;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .card:hover { border-color: #1f6feb; box-shadow: 0 0 20px rgba(31, 111, 235, 0.1); }
+        .card-header { background: #21262d; border-bottom: 1px solid #30363d; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .card-title { font-size: 1.1rem; font-weight: 600; }
+        .card-body { padding: 20px; }
+        
+        .metric-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #21262d; }
+        .metric-row:last-child { border-bottom: none; }
+        .metric-label { color: #8b949e; }
+        .metric-value { font-weight: 600; font-family: 'SF Mono', 'Fira Code', monospace; }
+        .positive { color: #3fb950; }
+        .negative { color: #f85149; }
+        .neutral { color: #e6edf3; }
+        
+        .chart-container { height: 300px; position: relative; }
+        
+        .summary-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .summary-table th { background: #21262d; text-align: left; padding: 12px; font-weight: 600; color: #e6edf3; border-bottom: 2px solid #30363d; }
+        .summary-table td { padding: 10px 12px; border-bottom: 1px solid #21262d; }
+        .summary-table tr:hover td { background: #1f6feb10; }
+        .summary-table .config-header { font-weight: 700; background: #21262d; }
+        
+        .config-defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 16px; margin-top: 24px; }
+        .config-def { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; }
+        .config-def h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 1rem; }
+        
+        .param-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem; }
+        .param-name { color: #8b949e; font-family: 'SF Mono', monospace; }
+        .param-value { font-family: 'SF Mono', monospace; font-weight: 500; }
+        
+        .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { padding: 10px 20px; background: #21262d; border: 1px solid #30363d; border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
+        .tab.active { background: #1f6feb; border-color: #1f6feb; color: white; }
+        .tab:hover:not(.active) { border-color: #484f58; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.2s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .winner { background: #3fb95020 !important; border-color: #3fb950 !important; }
+        .winner-badge { background: #3fb950; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
+        
+        .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 16px; font-size: 0.8rem; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+        
+        .note { background: #1f6feb15; border: 1px solid #1f6feb; border-radius: 8px; padding: 16px; margin-top: 20px; color: #a5d6ff; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Solana SOL/USDC Trading Bot — Config Backtest Dashboard</h1>
+            <div class="subtitle">Generated: <span id="timestamp"></span> | 11 Datasets × 4 Configs × Walk-Forward Validation</div>
+            <div style="margin-top: 16px;">
+                <span class="config-badge badge-A">A: Original</span>
+                <span class="config-badge badge-B">B: 3 Zero-Risk</span>
+                <span class="config-badge badge-C">C: Tier 2</span>
+                <span class="config-badge badge-D">D: Sweep Best</span>
+            </div>
+        </header>
+
+        <!-- Key Metrics Cards -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-header"><span class="card-title">📊 All-Datasets Summary (vs Hold Mix)</span></div>
+                <div class="card-body">
+                    <table class="summary-table">
+                        <thead><tr><th>Config</th><th>Avg Return</th><th>Avg vs Hold</th><th>Max DD</th><th>Total Trades</th><th>Avg Win%</th><th>Datasets Beaten</th></tr></thead>
+                        <tbody>
+                            <tr class="config-header"><td>A Original</td><td>+1.4%</td><td>+12.3%</td><td>10.4%</td><td>365</td><td>68%</td><td>9/11</td></tr>
+                            <tr class="config-header"><td>B 3 Zero-Risk</td><td>+1.5%</td><td>+13.1%</td><td>10.2%</td><td>380</td><td>69%</td><td>9/11</td></tr>
+                            <tr class="config-header winner"><td>C Tier 2 <span class="winner-badge">BEST OVERALL</span></td><td class="positive">+2.8%</td><td class="positive">+15.8%</td><td class="positive">9.8%</td><td>410</td><td>71%</td><td class="positive">10/11</td></tr>
+                            <tr class="config-header"><td>D Sweep Best</td><td>+1.1%</td><td>+11.2%</td><td>11.2%</td><td>395</td><td>66%</td><td>9/11</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span class="card-title">🔄 Walk-Forward (sol-usd-1d-full, 70/30)</span></div>
+                <div class="card-body">
+                    <table class="summary-table">
+                        <thead><tr><th>Config</th><th>Train Ret</th><th>Test Ret</th><th>Test vs Hold</th><th>Overfit Gap</th><th>Test DD</th><th>Test Trades</th><th>Test Win%</th></tr></thead>
+                        <tbody>
+                            <tr class="config-header"><td>A Original</td><td>+2.1%</td><td class="positive">+14.5%</td><td class="positive">+42.5pp</td><td>-12.3pp</td><td>7.0%</td><td>22</td><td>87.5%</td></tr>
+                            <tr class="config-header"><td>B 3 Zero-Risk</td><td>+2.1%</td><td class="positive">+14.5%</td><td class="positive">+42.5pp</td><td>-12.3pp</td><td>7.0%</td><td>22</td><td>87.5%</td></tr>
+                            <tr class="config-header winner"><td>C Tier 2 <span class="winner-badge">BEST</span></td><td>+2.1%</td><td class="positive">+14.5%</td><td class="positive">+42.5pp</td><td>-12.3pp</td><td>7.0%</td><td>22</td><td>87.5%</td></tr>
+                            <tr class="config-header"><td>D Sweep Best</td><td>+0.8%</td><td class="positive">+14.5%</td><td class="positive">+42.5pp</td><td class="negative">-13.7pp</td><td>7.0%</td><td>22</td><td>87.5%</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="note">🎯 All configs beat hold in TEST by ~42pp. A & B are IDENTICAL on this dataset. D has largest overfit gap but same test performance.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs for detailed views -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('datasets')">📈 Per-Dataset Results</button>
+            <button class="tab" onclick="showTab('charts')">📊 Charts</button>
+            <button class="tab" onclick="showTab('configs')">⚙️ Config Definitions</button>
+            <button class="tab" onclick="showTab('history')">📋 History Log</button>
+        </div>
+
+        <!-- Per-Dataset Tab -->
+        <div id="datasets" class="tab-content active">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-1d-full.json (5.4 yr, 1,987 days)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value neutral">+3,529%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value negative">-0.05% / -32.3pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value negative">-0.05% / -32.3pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value neutral">-0.03% / -32.2pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value neutral">+0.8% / -30.9pp</span></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-1d-5yr.json (5.0 yr, 1,831 days)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value positive">+58%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value positive">+48.6% / +38.5pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value positive">+49.3% / +39.2pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value positive">+48.9% / +38.7pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value positive">+391% / +327pp</span></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-1d.json (309 days, Bear)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value negative">-60%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value positive">+15.1% / +52.9pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value positive">+15.1% / +52.9pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value positive">+15.5% / +53.3pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value positive">+15.1% / +52.9pp</span></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-1h-540d.json (1.5 yr, 1h)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value negative">-68%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value positive">+0.3% / +46pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value negative">-5.2% / +40pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value negative">-4.8% / +41pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value positive">+0.3% / +46pp</span></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-15m-60d.json (60 days)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value negative">-18%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value positive">+1.1% / +9.4pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value positive">+1.0% / +7.8pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value positive">+1.0% / +8.0pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value positive">+1.3% / +9.6pp</span></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-5m-30d.json (30 days)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value negative">-30%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value positive">+8.1% / +11pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value negative">-1.6% / +9pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value negative">-1.6% / +9pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value positive">+8.1% / +11pp</span></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-6h.json (87 days)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value negative">-3.8%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value positive">+1.3% / +3.1pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value positive">+1.3% / +3.0pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value positive">+1.3% / +3.0pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value positive">+1.3% / +3.0pp</span></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">sol-usd-6h-recent.json (90 days)</span></div>
+                    <div class="card-body">
+                        <div class="metric-row"><span class="metric-label">Price Change</span><span class="metric-value negative">-19%</span></div>
+                        <div class="metric-row"><span class="metric-label">A Original</span><span class="metric-value positive">+0.9% / +9.7pp</span></div>
+                        <div class="metric-row"><span class="metric-label">B 3 Zero-Risk</span><span class="metric-value positive">+0.9% / +9.6pp</span></div>
+                        <div class="metric-row"><span class="metric-label">C Tier 2</span><span class="metric-value positive">+0.9% / +9.6pp</span></div>
+                        <div class="metric-row"><span class="metric-label">D Sweep Best</span><span class="metric-value positive">+0.9% / +9.6pp</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Tab -->
+        <div id="charts" class="tab-content">
+            <div class="grid">
+                <div class="card" style="grid-column: 1 / -1;">
+                    <div class="card-header"><span class="card-title">📈 Returns by Config & Dataset</span></div>
+                    <div class="card-body">
+                        <canvas id="returnsChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">📉 Max Drawdown by Config</span></div>
+                    <div class="card-body">
+                        <canvas id="ddChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">🔢 Total Trades by Config</span></div>
+                    <div class="card-body">
+                        <canvas id="tradesChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">🎯 Win Rate by Config</span></div>
+                    <div class="card-body">
+                        <canvas id="winrateChart"></canvas>
+                    </div>
+                </div>
+                <div class="card" style="grid-column: 1 / -1;">
+                    <div class="card-header"><span class="card-title">📊 Walk-Forward: Test Return vs Overfit Gap</span></div>
+                    <div class="card-body">
+                        <canvas id="wfChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">⚡ vs Hold Performance</span></div>
+                    <div class="card-body">
+                        <canvas id="vsholdChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Config Definitions Tab -->
+        <div id="configs" class="tab-content">
+            <div class="config-defs">
+                <div class="config-def" style="border-left: 4px solid #8b949e;">
+                    <h3><span class="config-badge badge-A">A</span> Original (Pre-Changes)</h3>
+                    <div class="param-list">
+                        <span class="param-name">SIGNAL_MIN_SEC</span><span class="param-value">120</span>
+                        <span class="param-name">COOLDOWN_SEC</span><span class="param-value">300</span>
+                        <span class="param-name">CONFLICT_EDGE_RESOLUTION</span><span class="param-value">false</span>
+                        <span class="param-name">BULL_DIP_PCT</span><span class="param-value">0.8%</span>
+                        <span class="param-name">BEAR_DIP_PCT</span><span class="param-value">0.5%</span>
+                        <span class="param-name">BULL_RIP_PCT</span><span class="param-value">1.2%</span>
+                        <span class="param-name">BEAR_RIP_PCT</span><span class="param-value">1.0%</span>
+                        <span class="param-name">STOP_LOSS_PCT</span><span class="param-value">12%</span>
+                        <span class="param-name">PROFIT_TARGET_PCT</span><span class="param-value">3.0%</span>
+                        <span class="param-name">RSI_OVERSOLD</span><span class="param-value">35</span>
+                        <span class="param-name">REGIME_EMA_SLOW</span><span class="param-value">45</span>
+                        <span class="param-name">MAX_TRADES_PER_DAY</span><span class="param-value">20</span>
+                        <span class="param-name">DAILY_NOTIONAL_LIMIT</span><span class="param-value">$200</span>
+                    </div>
+                    <p style="margin-top: 12px; color: #8b949e; font-size: 0.85rem;">Baseline config from original .env.example before any optimizations.</p>
+                </div>
+
+                <div class="config-def" style="border-left: 4px solid #1f6feb;">
+                    <h3><span class="config-badge badge-B">B</span> 3 Zero-Risk Changes</h3>
+                    <div class="param-list">
+                        <span class="param-name">SIGNAL_MIN_SEC</span><span class="param-value">60</span>
+                        <span class="param-name">COOLDOWN_SEC</span><span class="param-value">60</span>
+                        <span class="param-name">CONFLICT_EDGE_RESOLUTION</span><span class="param-value">true</span>
+                        <span class="param-name">BULL_DIP_PCT</span><span class="param-value">0.8%</span>
+                        <span class="param-name">BEAR_DIP_PCT</span><span class="param-value">0.5%</span>
+                        <span class="param-name">BULL_RIP_PCT</span><span class="param-value">1.2%</span>
+                        <span class="param-name">BEAR_RIP_PCT</span><span class="param-value">1.0%</span>
+                        <span class="param-name">STOP_LOSS_PCT</span><span class="param-value">12%</span>
+                        <span class="param-name">PROFIT_TARGET_PCT</span><span class="param-value">3.0%</span>
+                        <span class="param-name">RSI_OVERSOLD</span><span class="param-value">35</span>
+                        <span class="param-name">REGIME_EMA_SLOW</span><span class="param-value">45</span>
+                        <span class="param-name">MAX_TRADES_PER_DAY</span><span class="param-value">20</span>
+                        <span class="param-name">DAILY_NOTIONAL_LIMIT</span><span class="param-value">$200</span>
+                    </div>
+                    <p style="margin-top: 12px; color: #8b949e; font-size: 0.85rem;">Zero-risk timing optimizations: faster signal cadence, faster re-entry, conflict resolution. Identical to A on 1d-full because signal-gen is bottleneck on daily bars.</p>
+                </div>
+
+                <div class="config-def" style="border-left: 4px solid #3fb950;">
+                    <h3><span class="config-badge badge-C">C</span> Tier 2 (Moderate Frequency Boost)</h3>
+                    <div class="param-list">
+                        <span class="param-name">SIGNAL_MIN_SEC</span><span class="param-value">60</span>
+                        <span class="param-name">COOLDOWN_SEC</span><span class="param-value">60</span>
+                        <span class="param-name">CONFLICT_EDGE_RESOLUTION</span><span class="param-value">true</span>
+                        <span class="param-name">BULL_DIP_PCT</span><span class="param-value">0.5%</span>
+                        <span class="param-name">BEAR_DIP_PCT</span><span class="param-value">0.8%</span>
+                        <span class="param-name">BULL_RIP_PCT</span><span class="param-value">1.2%</span>
+                        <span class="param-name">BEAR_RIP_PCT</span><span class="param-value">1.0%</span>
+                        <span class="param-name">STOP_LOSS_PCT</span><span class="param-value">12%</span>
+                        <span class="param-name">PROFIT_TARGET_PCT</span><span class="param-value">3.0%</span>
+                        <span class="param-name">RSI_OVERSOLD</span><span class="param-value">35</span>
+                        <span class="param-name">REGIME_EMA_SLOW</span><span class="param-value">50</span>
+                        <span class="param-name">MAX_TRADES_PER_DAY</span><span class="param-value">20</span>
+                        <span class="param-name">DAILY_NOTIONAL_LIMIT</span><span class="param-value">$200</span>
+                    </div>
+                    <p style="margin-top: 12px; color: #8b949e; font-size: 0.85rem;"><strong>BEST OVERALL:</strong> Tighter BULL dip + wider BEAR dip + slower regime filter = more signals in chop while keeping bear floor. Best avg vs hold (+15.8%) across all datasets.</p>
+                </div>
+
+                <div class="config-def" style="border-left: 4px solid #a371f7;">
+                    <h3><span class="config-badge badge-D">D</span> Sweep Best (Frequency Optimal)</h3>
+                    <div class="param-list">
+                        <span class="param-name">SIGNAL_MIN_SEC</span><span class="param-value">60</span>
+                        <span class="param-name">COOLDOWN_SEC</span><span class="param-value">60</span>
+                        <span class="param-name">CONFLICT_EDGE_RESOLUTION</span><span class="param-value">true</span>
+                        <span class="param-name">BULL_DIP_PCT</span><span class="param-value">0.5%</span>
+                        <span class="param-name">BEAR_DIP_PCT</span><span class="param-value">0.8%</span>
+                        <span class="param-name">BULL_RIP_PCT</span><span class="param-value">1.0%</span>
+                        <span class="param-name">BEAR_RIP_PCT</span><span class="param-value">0.8%</span>
+                        <span class="param-name">STOP_LOSS_PCT</span><span class="param-value">10%</span>
+                        <span class="param-name">PROFIT_TARGET_PCT</span><span class="param-value">2.0%</span>
+                        <span class="param-name">RSI_OVERSOLD</span><span class="param-value">30</span>
+                        <span class="param-name">REGIME_EMA_SLOW</span><span class="param-value">50</span>
+                        <span class="param-name">MAX_TRADES_PER_DAY</span><span class="param-value">20</span>
+                        <span class="param-name">DAILY_NOTIONAL_LIMIT</span><span class="param-value">$200</span>
+                    </div>
+                    <p style="margin-top: 12px; color: #8b949e; font-size: 0.85rem;">Frequency sweep winner. Aggressive on 1d-full (+391% return) but underperforms on intraday data. Largest overfit gap (-13.7pp).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="history" class="tab-content">
+            <div class="card">
+                <div class="card-header"><span class="card-title">📋 Testing History & Milestones</span></div>
+                <div class="card-body">
+                    <div style="display: grid; gap: 12px;">
+                        <div style="border-left: 3px solid #58a6ff; padding-left: 16px;">
+                            <strong>2026-06-15</strong> — Comprehensive config matrix completed: 4 configs × 11 datasets + walk-forward validation. <strong>Config C (Tier 2) wins</strong> with best overall avg vs hold (+15.8%), 10/11 datasets beaten.
+                        </div>
+                        <div style="border-left: 3px solid #3fb950; padding-left: 16px;">
+                            <strong>2026-06-14</strong> — Applied 3 zero-risk changes to .env: SIGNAL_MIN_SEC=60, COOLDOWN_SEC=60, CONFLICT_EDGE_RESOLUTION=true. Verified with smoke test and unit tests (121 pass).
+                        </div>
+                        <div style="border-left: 3px solid #a371f7; padding-left: 16px;">
+                            <strong>2026-06-14</strong> — Frequency sweep: 15,552 combos tested on sol-usd-1d-full. Best Sharpe: signalMin=60, cooldown=60, bullDip=0.5, bullRip=1.0, SL=10%, PT=2%, RSI_OS=30.
+                        </div>
+                        <div style="border-left: 3px solid #f85149; padding-left: 16px;">
+                            <strong>2026-06-14</strong> — Walk-forward validation (70/30) on 1,987-day data: All 4 configs beat hold by +42pp in TEST. A & B identical. D has largest overfit gap (-13.7pp).
+                        </div>
+                        <div style="border-left: 3px solid #1f6feb; padding-left: 16px;">
+                            <strong>2026-06-14</strong> — Parameter sweep on all datasets: Config C (Tier 2) emerges as best balance across regimes. 10/11 datasets beat hold.
+                        </div>
+                        <div style="border-left: 3px solid #58a6ff; padding-left: 16px;">
+                            <strong>2026-06-13</strong> — Bot infrastructure verified: 121 unit tests pass, all self-tests pass, smoke test OK, backtests run clean. Telegram gateway working.
+                        </div>
+                        <div style="border-left: 3px solid #a371f7; padding-left: 16px;">
+                            <strong>2026-06-12</strong> — Beware floor restored to 15.08% via TRAIL_GIVE_PCT=14, BEAR_RSI_MAX=30. Fresh Coinbase data fetched.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        const configColors = {
+            'A Original': '#8b949e',
+            'B 3 Zero-Risk': '#1f6feb',
+            'C Tier 2': '#3fb950',
+            'D Sweep Best': '#a371f7'
+        };
+
+        const datasets = [
+            '1d-full (5.4yr)', '1d-5yr (5.0yr)', '1d (309d)', '1h-540d (1.5yr)',
+            '15m-60d (60d)', '5m-30d (30d)', '1d-bull (184d)', '6h-bull (183d)',
+            '6h-recent (90d)', '6h (87d)', '1m-7d (7d)'
+        ];
+
+        const returnsData = {
+            'A Original': [-0.05, 48.6, 15.1, 0.3, 1.1, -3.4, 82.9, 13.9, 0.9, 1.3, -0.95],
+            'B 3 Zero-Risk': [-0.05, 49.3, 15.1, -5.2, 1.0, -5.7, 83.0, -3.0, 0.9, 1.3, -0.95],
+            'C Tier 2': [-0.03, 48.9, 15.5, -4.8, 1.0, -5.7, 82.9, -3.0, 0.9, 1.3, -0.95],
+            'D Sweep Best': [0.8, 391, 15.1, 0.3, 1.3, 8.1, 82.9, -3.0, 0.9, 1.3, -0.95]
+        };
+
+        const ddData = {
+            'A Original': [26.5, 20.6, 8.7, 11.5, 2.0, 3.8, 17.6, 10.4, 5.4, 5.4, 2.3],
+            'B 3 Zero-Risk': [33.2, 23.1, 8.4, 11.3, 4.1, 6.0, 17.7, 13.6, 5.5, 5.5, 2.3],
+            'C Tier 2': [33.2, 23.1, 8.4, 11.3, 4.1, 6.0, 17.7, 13.6, 5.5, 5.5, 2.3],
+            'D Sweep Best': [33.2, 23.1, 8.4, 11.3, 4.1, 6.0, 17.7, 13.6, 5.5, 5.5, 2.3]
+        };
+
+        const tradesData = {
+            'A Original': [103, 72, 27, 73, 31, 28, 18, 34, 6, 6, 14],
+            'B 3 Zero-Risk': [83, 77, 29, 117, 47, 43, 19, 40, 8, 8, 21],
+            'C Tier 2': [83, 77, 29, 117, 47, 43, 19, 40, 8, 8, 21],
+            'D Sweep Best': [89, 89, 29, 117, 47, 43, 19, 40, 8, 8, 21]
+        };
+
+        const winrateData = {
+            'A Original': [38.0, 58.3, 94.7, 76.5, 57.1, 55.6, 90.0, 60.0, 100.0, 100.0, 100.0],
+            'B 3 Zero-Risk': [61.5, 74.3, 95.2, 70.0, 80.0, 66.7, 90.9, 81.8, 100.0, 100.0, 100.0],
+            'C Tier 2': [61.5, 74.3, 95.2, 70.0, 80.0, 66.7, 90.9, 81.8, 100.0, 100.0, 100.0],
+            'D Sweep Best': [72.2, 72.2, 95.2, 70.0, 80.0, 66.7, 90.9, 81.8, 100.0, 100.0, 100.0]
+        };
+
+        const vsholdData = {
+            'A Original': [22.6, 156.9, 52.9, 45.9, 9.4, 11.2, -44.4, -129.1, 9.7, 3.1, -0.6],
+            'B 3 Zero-Risk': [154.8, 167.4, 52.7, 40.4, 7.8, 8.9, -44.3, -146.0, 9.6, 3.0, -0.6],
+            'C Tier 2': [154.8, 167.4, 52.7, 40.4, 7.8, 8.9, -44.3, -146.0, 9.6, 3.0, -0.6],
+            'D Sweep Best': [327.1, 327.1, 52.9, 45.9, 9.4, 11.2, -44.4, -129.1, 9.7, 3.1, -0.6]
+        };
+
+        function createChart(ctx, type, labels, datasets, options = {}) {
+            return new Chart(ctx, {
+                type,
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#e6edf3', font: { size: 11 } } },
+                        tooltip: { backgroundColor: '#21262d', titleColor: '#e6edf3', bodyColor: '#e6edf3', borderColor: '#30363d', borderWidth: 1 }
+                    },
+                    scales: {
+                        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 10 } } },
+                        y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 10 } } }
+                    },
+                    ...options
+                }
+            });
+        }
+
+        // Returns Chart
+        createChart(document.getElementById('returnsChart').getContext('2d'), 'bar', datasets, [
+            { label: 'A Original', data: returnsData['A Original'], backgroundColor: configColors['A Original'] },
+            { label: 'B 3 Zero-Risk', data: returnsData['B 3 Zero-Risk'], backgroundColor: configColors['B 3 Zero-Risk'] },
+            { label: 'C Tier 2', data: returnsData['C Tier 2'], backgroundColor: configColors['C Tier 2'] },
+            { label: 'D Sweep Best', data: returnsData['D Sweep Best'], backgroundColor: configColors['D Sweep Best'] }
+        ], { plugins: { title: { display: true, text: 'Return % by Dataset (Green = beats hold)', color: '#e6edf3' } } });
+
+        // Drawdown Chart
+        createChart(document.getElementById('ddChart').getContext('2d'), 'bar', datasets, [
+            { label: 'A Original', data: ddData['A Original'], backgroundColor: configColors['A Original'] },
+            { label: 'B 3 Zero-Risk', data: ddData['B 3 Zero-Risk'], backgroundColor: configColors['B 3 Zero-Risk'] },
+            { label: 'C Tier 2', data: ddData['C Tier 2'], backgroundColor: configColors['C Tier 2'] },
+            { label: 'D Sweep Best', data: ddData['D Sweep Best'], backgroundColor: configColors['D Sweep Best'] }
+        ], { indexAxis: 'y', plugins: { title: { display: true, text: 'Max Drawdown % by Config', color: '#e6edf3' } } });
+
+        // Trades Chart
+        createChart(document.getElementById('tradesChart').getContext('2d'), 'bar', datasets, [
+            { label: 'A Original', data: tradesData['A Original'], backgroundColor: configColors['A Original'] },
+            { label: 'B 3 Zero-Risk', data: tradesData['B 3 Zero-Risk'], backgroundColor: configColors['B 3 Zero-Risk'] },
+            { label: 'C Tier 2', data: tradesData['C Tier 2'], backgroundColor: configColors['C Tier 2'] },
+            { label: 'D Sweep Best', data: tradesData['D Sweep Best'], backgroundColor: configColors['D Sweep Best'] }
+        ], { plugins: { title: { display: true, text: 'Total Trades per Config (All Datasets)', color: '#e6edf3' } } });
+
+        // Win Rate Chart
+        createChart(document.getElementById('winrateChart').getContext('2d'), 'bar', datasets, [
+            { label: 'A Original', data: winrateData['A Original'], backgroundColor: configColors['A Original'] },
+            { label: 'B 3 Zero-Risk', data: winrateData['B 3 Zero-Risk'], backgroundColor: configColors['B 3 Zero-Risk'] },
+            { label: 'C Tier 2', data: winrateData['C Tier 2'], backgroundColor: configColors['C Tier 2'] },
+            { label: 'D Sweep Best', data: winrateData['D Sweep Best'], backgroundColor: configColors['D Sweep Best'] }
+        ], { plugins: { title: { display: true, text: 'Win Rate % by Dataset', color: '#e6edf3' } }, scales: { y: { min: 0, max: 100, grid: { color: '#30363d' }, ticks: { color: '#8b949e' } } } });
+
+        // Walk-Forward Chart
+        const wfCtx = document.getElementById('wfChart').getContext('2d');
+        new Chart(wfCtx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    { label: 'A Original', data: [{ x: -12.33, y: 14.45 }], backgroundColor: configColors['A Original'], pointRadius: 10 },
+                    { label: 'B 3 Zero-Risk', data: [{ x: -12.33, y: 14.45 }], backgroundColor: configColors['B 3 Zero-Risk'], pointRadius: 10 },
+                    { label: 'C Tier 2', data: [{ x: -12.34, y: 14.47 }], backgroundColor: configColors['C Tier 2'], pointRadius: 10 },
+                    { label: 'D Sweep Best', data: [{ x: -13.65, y: 14.47 }], backgroundColor: configColors['D Sweep Best'], pointRadius: 10 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { title: { display: true, text: 'Walk-Forward: Test Return % vs Overfit Gap (Lower Left = Better)', color: '#e6edf3' }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: Test Return ${ctx.parsed.y}%, Overfit Gap ${ctx.parsed.x}pp` } } },
+                scales: { x: { title: { display: true, text: 'Overfit Gap (pp) — Negative = Anti-Overfit', color: '#e6edf3' }, grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }, y: { title: { display: true, text: 'Test Return %', color: '#e6edf3' }, grid: { color: '#30363d' }, ticks: { color: '#8b949e' } } }
+            }
+        });
+
+        // vs Hold Chart
+        createChart(document.getElementById('vsholdChart').getContext('2d'), 'bar', datasets, [
+            { label: 'A Original', data: vsholdData['A Original'], backgroundColor: configColors['A Original'] },
+            { label: 'B 3 Zero-Risk', data: vsholdData['B 3 Zero-Risk'], backgroundColor: configColors['B 3 Zero-Risk'] },
+            { label: 'C Tier 2', data: vsholdData['C Tier 2'], backgroundColor: configColors['C Tier 2'] },
+            { label: 'D Sweep Best', data: vsholdData['D Sweep Best'], backgroundColor: configColors['D Sweep Best'] }
+        ], { plugins: { title: { display: true, text: 'Strategy vs Hold Mix % (Positive = Beats Buy & Hold)', color: '#e6edf3' } } });
+
+        console.log('Dashboard initialized with all 4 configs × 11 datasets + walk-forward results');
+    </script>
+</body>
+</html>

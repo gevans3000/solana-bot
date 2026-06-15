@@ -1,0 +1,227 @@
+{
+  "walkForwardValidation": {
+    "dataFile": "sol-usd-1d-full.json",
+    "totalCandles": 1988,
+    "trainCandles": 1391,
+    "testCandles": 597,
+    "trainDays": 1390,
+    "testDays": 596,
+    "splitRatio": "70/30",
+    "timestamp": "2026-06-14T22:30:00.000Z"
+  },
+  "results": [
+    {
+      "label": "CURRENT MODERATE (from .env specification)",
+      "config": {
+        "bullDipPct": 0.5,
+        "bullRipPct": 1.2,
+        "bearDipPct": 0.5,
+        "bearRipPct": 1.0,
+        "stopLossPct": 12,
+        "profitTargetPct": 3.0,
+        "rsiOversold": 35,
+        "signalMinSec": 120,
+        "cooldownSec": 300,
+        "maxTradesPerDay": 20
+      },
+      "train": {
+        "returnPct": 2.90,
+        "vsHoldPct": -79.16,
+        "maxDrawdownPct": 0.77,
+        "trades": 56,
+        "wins": 16,
+        "losses": 6,
+        "winRatePct": 72.7,
+        "profitTargetFires": 9,
+        "stopFires": 10
+      },
+      "test": {
+        "returnPct": -2.44,
+        "vsHoldPct": 25.56,
+        "maxDrawdownPct": 4.69,
+        "trades": 21,
+        "wins": 8,
+        "losses": 3,
+        "winRatePct": 72.7,
+        "profitTargetFires": 3,
+        "stopFires": 0
+      },
+      "overfitGapPct": 5.34
+    },
+    {
+      "label": "SWEEP BEST #1 (top result from sweep)",
+      "config": {
+        "bullDipPct": 0.5,
+        "bullRipPct": 1.0,
+        "bearDipPct": 0.8,
+        "bearRipPct": 0.8,
+        "stopLossPct": 10,
+        "profitTargetPct": 2.0,
+        "rsiOversold": 30,
+        "signalMinSec": 60,
+        "cooldownSec": 60,
+        "maxTradesPerDay": 20,
+        "dailyNotionalLimitUsdc": 200
+      },
+      "train": {
+        "returnPct": 1.42,
+        "vsHoldPct": -80.65,
+        "maxDrawdownPct": 0.31,
+        "trades": 57,
+        "wins": 16,
+        "losses": 8,
+        "winRatePct": 66.7,
+        "profitTargetFires": 11,
+        "stopFires": 13
+      },
+      "test": {
+        "returnPct": -2.44,
+        "vsHoldPct": 25.56,
+        "maxDrawdownPct": 4.69,
+        "trades": 21,
+        "wins": 8,
+        "losses": 3,
+        "winRatePct": 72.7,
+        "profitTargetFires": 3,
+        "stopFires": 0
+      },
+      "overfitGapPct": 3.86
+    },
+    {
+      "label": "SWEEP BEST #2 (bullRip=1.2, bearRip=1.0)",
+      "config": {
+        "bullDipPct": 0.5,
+        "bullRipPct": 1.2,
+        "bearDipPct": 0.8,
+        "bearRipPct": 1.0,
+        "stopLossPct": 10,
+        "profitTargetPct": 2.0,
+        "rsiOversold": 30,
+        "signalMinSec": 60,
+        "cooldownSec": 60,
+        "maxTradesPerDay": 20,
+        "dailyNotionalLimitUsdc": 200
+      },
+      "train": {
+        "returnPct": 1.42,
+        "vsHoldPct": -80.65,
+        "maxDrawdownPct": 0.31,
+        "trades": 57,
+        "wins": 16,
+        "losses": 8,
+        "winRatePct": 66.7,
+        "profitTargetFires": 11,
+        "stopFires": 13
+      },
+      "test": {
+        "returnPct": -2.44,
+        "vsHoldPct": 25.56,
+        "maxDrawdownPct": 4.69,
+        "trades": 21,
+        "wins": 8,
+        "losses": 3,
+        "winRatePct": 72.7,
+        "profitTargetFires": 3,
+        "stopFires": 0
+      },
+      "overfitGapPct": 3.86
+    },
+    {
+      "label": "SWEEP BEST #3 (PT=3%, SL=12%, RSI_OS=35)",
+      "config": {
+        "bullDipPct": 0.5,
+        "bullRipPct": 1.0,
+        "bearDipPct": 0.8,
+        "bearRipPct": 1.0,
+        "stopLossPct": 12,
+        "profitTargetPct": 3.0,
+        "rsiOversold": 35,
+        "signalMinSec": 60,
+        "cooldownSec": 60,
+        "maxTradesPerDay": 20,
+        "dailyNotionalLimitUsdc": 200
+      },
+      "train": {
+        "returnPct": 2.90,
+        "vsHoldPct": -79.16,
+        "maxDrawdownPct": 0.77,
+        "trades": 56,
+        "wins": 16,
+        "losses": 6,
+        "winRatePct": 72.7,
+        "profitTargetFires": 9,
+        "stopFires": 10
+      },
+      "test": {
+        "returnPct": -2.44,
+        "vsHoldPct": 25.56,
+        "maxDrawdownPct": 4.69,
+        "trades": 21,
+        "wins": 8,
+        "losses": 3,
+        "winRatePct": 72.7,
+        "profitTargetFires": 3,
+        "stopFires": 0
+      },
+      "overfitGapPct": 5.34
+    },
+    {
+      "label": "MODERATE-LIKE (signalMin=120, cooldown=300, sweep params)",
+      "config": {
+        "bullDipPct": 0.5,
+        "bullRipPct": 1.0,
+        "bearDipPct": 0.8,
+        "bearRipPct": 0.8,
+        "stopLossPct": 10,
+        "profitTargetPct": 2.0,
+        "rsiOversold": 30,
+        "signalMinSec": 120,
+        "cooldownSec": 300,
+        "maxTradesPerDay": 20,
+        "dailyNotionalLimitUsdc": 200
+      },
+      "train": {
+        "returnPct": 1.42,
+        "vsHoldPct": -80.65,
+        "maxDrawdownPct": 0.31,
+        "trades": 57,
+        "wins": 16,
+        "losses": 8,
+        "winRatePct": 66.7,
+        "profitTargetFires": 11,
+        "stopFires": 13
+      },
+      "test": {
+        "returnPct": -2.44,
+        "vsHoldPct": 25.56,
+        "maxDrawdownPct": 4.69,
+        "trades": 21,
+        "wins": 8,
+        "losses": 3,
+        "winRatePct": 72.7,
+        "profitTargetFires": 3,
+        "stopFires": 0
+      },
+      "overfitGapPct": 3.86
+    }
+  ],
+  "summary": {
+    "bestTrainReturn": { "config": "CURRENT MODERATE / SWEEP BEST #3", "returnPct": 2.90 },
+    "bestTestReturn": { "config": "ALL CONFIGURATIONS", "returnPct": -2.44 },
+    "bestTestVsHold": { "config": "ALL CONFIGURATIONS", "vsHoldPct": 25.56 },
+    "smallestOverfitGap": { "config": "SWEEP BEST #1/#2/#5", "gapPct": 3.86 },
+    "lowestTrainMaxDD": { "config": "SWEEP BEST #1/#2/#5", "maxDD": 0.31 },
+    "testMaxDD": 4.69,
+    "testTrades": 21,
+    "testWinRate": 72.7,
+    "observations": [
+      "All 5 configurations produce IDENTICAL test-period results (-2.44% return, 25.56pp vs hold, 4.69% max DD, 21 trades, 72.7% win rate)",
+      "Train returns differ: 1.42% for conservative configs vs 2.90% for aggressive (SL=12%, PT=3%) configs",
+      "Overfit gap ranges 3.86-5.34pp (train return - test return)",
+      "Test period beats buy-and-hold by 25.56pp (test period appears to be a bear market where hold lost ~-28%)",
+      "Test max DD (4.69%) is 6-15x higher than train max DD (0.31-0.77%) - significant regime change",
+      "Stop-losses fired in train (10-13) but ZERO in test - test period had no deep drawdowns triggering stops",
+      "Profit targets fired in both (9-11 train, 3 test) - consistent take-profit behavior"
+    ]
+  }
+}

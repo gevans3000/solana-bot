@@ -1,0 +1,1910 @@
+{
+  "metadata": {
+    "timestamp": "2026-06-15T13:48:24.974Z",
+    "dataFile": "sol-usd-1d-full.json",
+    "candles": 1988,
+    "days": 1987,
+    "baseParams": {
+      "bullDipPct": 0.5,
+      "bullRipPct": 1.5,
+      "bullBuyUsdc": 1,
+      "bullSellSol": 0.01,
+      "bearDipPct": 0.8,
+      "bearRipPct": 2.1,
+      "bearBuyUsdc": 1,
+      "bearSellSol": 0.01,
+      "minExpectedEdgeBps": 5,
+      "minTradeUsdc": 1,
+      "maxNotionalUsdc": 8,
+      "dailyNotionalLimitUsdc": 200,
+      "maxTradesPerDay": 20,
+      "minSolReserve": 0.01,
+      "maxSolAllocationPct": 60,
+      "signalMinSec": 60,
+      "cooldownSec": 60,
+      "decisionWindowSec": 60,
+      "staleSignalSec": 180,
+      "simStartUsdc": 1000,
+      "simStartSol": 5,
+      "simFeeBps": 30,
+      "simSlippageBps": 8,
+      "trendFilterEnabled": true,
+      "emaPeriod": 20,
+      "regimeFilterEnabled": true,
+      "regimeEmaSlow": 45,
+      "useAtrThresholds": false,
+      "atrPeriod": 14,
+      "atrDipMult": 1,
+      "atrRipMult": 0.7,
+      "atrMinDipPct": 0.1,
+      "atrMinRipPct": 0.1,
+      "rsiEnabled": true,
+      "rsiPeriod": 14,
+      "rsiOversold": 35,
+      "rsiOverbought": 70,
+      "rsiScaleBuyEnabled": false,
+      "rsiScaleMaxMult": 2,
+      "profitTargetEnabled": true,
+      "profitTargetPct": 3,
+      "profitTargetBypassCooldown": false,
+      "stopLossEnabled": true,
+      "stopLossPct": 8,
+      "trailInUptrend": true,
+      "trailArmPct": 2,
+      "trailGivePct": 12,
+      "intrabarStops": true,
+      "anchorCooldownBars": 2,
+      "entryBounceConfirm": true,
+      "botSpecializationEnabled": true,
+      "bearRsiMax": 35,
+      "bullRegimeThreshold": 7,
+      "bullDipScale": 3,
+      "regimeSizeEnabled": true,
+      "regimeSizeUpMult": 2,
+      "regimeSizeDownMult": 0.75,
+      "regimeSizeHighRsi": 100,
+      "bullBuyPctOfUsdc": 0.15,
+      "bullTrailGivePct": 25,
+      "bullMinSolHold": 0,
+      "bullProportionalSells": false,
+      "bullStrongRegimePct": 10,
+      "bullMaxNotionalUsdc": 8,
+      "minSellNotionalMult": 0,
+      "conflictEdgeResolution": false
+    },
+    "metric": "Sharpe Proxy (Return/MaxDD)",
+    "nSobol": 300
+  },
+  "sobolIndices": [
+    {
+      "name": "emaPeriod",
+      "S1": 0.177822356015922,
+      "ST": 0.316218927747342,
+      "category": "Trend"
+    },
+    {
+      "name": "regimeEmaSlow",
+      "S1": 0.1515093923877332,
+      "ST": 0.261254524559715,
+      "category": "Regime"
+    },
+    {
+      "name": "rsiOversold",
+      "S1": 0.0339116504211836,
+      "ST": 0.014340453206293593,
+      "category": "RSI"
+    },
+    {
+      "name": "rsiOverbought",
+      "S1": 0.03314107327257709,
+      "ST": 0.0002523477119882219,
+      "category": "RSI"
+    },
+    {
+      "name": "rsiPeriod",
+      "S1": 0,
+      "ST": 0.06109460169428816,
+      "category": "RSI"
+    },
+    {
+      "name": "profitTargetPct",
+      "S1": 0.03366969067096237,
+      "ST": 0.00013886887624958998,
+      "category": "Exit"
+    },
+    {
+      "name": "stopLossPct",
+      "S1": 0.025529718798941614,
+      "ST": 0.02013906064372928,
+      "category": "Exit"
+    },
+    {
+      "name": "trailArmPct",
+      "S1": 0.03403186884097997,
+      "ST": 0.007239001116758087,
+      "category": "Exit"
+    },
+    {
+      "name": "trailGivePct",
+      "S1": 0.10211304835205748,
+      "ST": 0.30453689467689726,
+      "category": "Exit"
+    },
+    {
+      "name": "bullTrailGivePct",
+      "S1": 0.05751792364141861,
+      "ST": 0.2906006528661426,
+      "category": "Exit"
+    },
+    {
+      "name": "bullDipPct",
+      "S1": 0.03031656576895092,
+      "ST": 0.0011905933028602757,
+      "category": "Entry"
+    },
+    {
+      "name": "bullRipPct",
+      "S1": 0.03244693996765746,
+      "ST": 0.000008146319219084532,
+      "category": "Entry"
+    },
+    {
+      "name": "bearDipPct",
+      "S1": 0.033202533314951044,
+      "ST": 0.00006469687846588062,
+      "category": "Entry"
+    },
+    {
+      "name": "bearRipPct",
+      "S1": 0.03285449456518297,
+      "ST": 0.000010334263938340896,
+      "category": "Entry"
+    },
+    {
+      "name": "bearRsiMax",
+      "S1": 0.08797337614015965,
+      "ST": 0.16498446546678525,
+      "category": "Entry"
+    },
+    {
+      "name": "bullRegimeThreshold",
+      "S1": 0.1910545593813049,
+      "ST": 0.3941068759758032,
+      "category": "Regime"
+    },
+    {
+      "name": "bullDipScale",
+      "S1": 0.03320056390544457,
+      "ST": 0.00015189370191795432,
+      "category": "Regime"
+    },
+    {
+      "name": "regimeSizeUpMult",
+      "S1": 0.03455546294487366,
+      "ST": 0.005539378855668644,
+      "category": "Sizing"
+    },
+    {
+      "name": "regimeSizeDownMult",
+      "S1": 0.03298175612565568,
+      "ST": 0,
+      "category": "Sizing"
+    },
+    {
+      "name": "bullBuyPctOfUsdc",
+      "S1": 0.03298175612565568,
+      "ST": 0,
+      "category": "Sizing"
+    },
+    {
+      "name": "anchorCooldownBars",
+      "S1": 0.0034663999267166012,
+      "ST": 0.018116415897642287,
+      "category": "Gates"
+    },
+    {
+      "name": "minExpectedEdgeBps",
+      "S1": 0.03298175612565568,
+      "ST": 0,
+      "category": "Gates"
+    },
+    {
+      "name": "maxSolAllocationPct",
+      "S1": 0.03298175612565568,
+      "ST": 0,
+      "category": "Risk"
+    },
+    {
+      "name": "minSolReserve",
+      "S1": 0.09540937146376949,
+      "ST": 0.19865766453281225,
+      "category": "Risk"
+    },
+    {
+      "name": "bullMinSolHold",
+      "S1": 0.023489230321214416,
+      "ST": 0.033545372518452916,
+      "category": "Risk"
+    },
+    {
+      "name": "simFeeBps",
+      "S1": 0.03147328643833125,
+      "ST": 0.00018299041893576708,
+      "category": "Costs"
+    },
+    {
+      "name": "simSlippageBps",
+      "S1": 0.02760824929064276,
+      "ST": 0.0057126691566755945,
+      "category": "Costs"
+    }
+  ],
+  "oatResults": [
+    {
+      "param": "emaPeriod",
+      "category": "Trend",
+      "baseValue": 20,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 10,
+          "metric": 1.497372760094707,
+          "delta": -1.0606836303057063
+        },
+        {
+          "value": 14,
+          "metric": 1.323208785293228,
+          "delta": -1.2348476051071855
+        },
+        {
+          "value": 18,
+          "metric": 2.354152293862052,
+          "delta": -0.2039040965383614
+        },
+        {
+          "value": 22,
+          "metric": 2.5780507606415073,
+          "delta": 0.01999437024109385
+        },
+        {
+          "value": 26,
+          "metric": 2.4755920653455235,
+          "delta": -0.08246432505488999
+        },
+        {
+          "value": 30,
+          "metric": 2.5606565014351337,
+          "delta": 0.0026001110347202427
+        }
+      ],
+      "maxDelta": 1.2348476051071855,
+      "normalizedSensitivity": 0.061742380255359275,
+      "range": [
+        10,
+        30
+      ]
+    },
+    {
+      "param": "regimeEmaSlow",
+      "category": "Regime",
+      "baseValue": 50,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 40,
+          "metric": 2.83775895593626,
+          "delta": 0.2797025655358465
+        },
+        {
+          "value": 48,
+          "metric": 2.5524723524886417,
+          "delta": -0.005584037911771755
+        },
+        {
+          "value": 56,
+          "metric": 2.5563311602787544,
+          "delta": -0.0017252301216590382
+        },
+        {
+          "value": 64,
+          "metric": 2.5726637597409523,
+          "delta": 0.014607369340538856
+        },
+        {
+          "value": 72,
+          "metric": 2.720496140307705,
+          "delta": 0.16243974990729138
+        },
+        {
+          "value": 80,
+          "metric": 3.974531857926225,
+          "delta": 1.4164754675258115
+        }
+      ],
+      "maxDelta": 1.4164754675258115,
+      "normalizedSensitivity": 0.03541188668814529,
+      "range": [
+        40,
+        80
+      ]
+    },
+    {
+      "param": "rsiOversold",
+      "category": "RSI",
+      "baseValue": 40,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 25,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 29,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 33,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 37,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 41,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 45,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        25,
+        45
+      ]
+    },
+    {
+      "param": "rsiOverbought",
+      "category": "RSI",
+      "baseValue": 70,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 60,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 65,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 70,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 75,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 80,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 85,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        60,
+        85
+      ]
+    },
+    {
+      "param": "rsiPeriod",
+      "category": "RSI",
+      "baseValue": 14,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 7,
+          "metric": 2.423358546165807,
+          "delta": -0.1346978442346063
+        },
+        {
+          "value": 10,
+          "metric": 2.5747139672386545,
+          "delta": 0.016657576838241095
+        },
+        {
+          "value": 13,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 15,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 18,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 21,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0.1346978442346063,
+      "normalizedSensitivity": 0.009621274588186164,
+      "range": [
+        7,
+        21
+      ]
+    },
+    {
+      "param": "profitTargetPct",
+      "category": "Exit",
+      "baseValue": 3,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 1,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2.4000000000000004,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 3.8000000000000003,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 5.2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 6.6000000000000005,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 8,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        1,
+        8
+      ]
+    },
+    {
+      "param": "stopLossPct",
+      "category": "Exit",
+      "baseValue": 8,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 4,
+          "metric": 2.6449076587213614,
+          "delta": 0.08685126832094792
+        },
+        {
+          "value": 7,
+          "metric": 3.828439358029714,
+          "delta": 1.2703829676293004
+        },
+        {
+          "value": 10,
+          "metric": 6.04709635340958,
+          "delta": 3.489039963009166
+        },
+        {
+          "value": 14,
+          "metric": 6.000166181611876,
+          "delta": 3.4421097912114624
+        },
+        {
+          "value": 17,
+          "metric": 5.986155042345362,
+          "delta": 3.4280986519449486
+        },
+        {
+          "value": 20,
+          "metric": 5.908140501308914,
+          "delta": 3.3500841109085004
+        }
+      ],
+      "maxDelta": 3.489039963009166,
+      "normalizedSensitivity": 0.2180649976880729,
+      "range": [
+        4,
+        20
+      ]
+    },
+    {
+      "param": "trailArmPct",
+      "category": "Exit",
+      "baseValue": 2,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.5,
+          "metric": 2.5464832279925624,
+          "delta": -0.011573162407851001
+        },
+        {
+          "value": 1.4,
+          "metric": 2.5464832279925624,
+          "delta": -0.011573162407851001
+        },
+        {
+          "value": 2.3,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 3.1999999999999997,
+          "metric": 2.5750666805878573,
+          "delta": 0.01701029018744382
+        },
+        {
+          "value": 4.1,
+          "metric": 2.588875096865867,
+          "delta": 0.030818706465453705
+        },
+        {
+          "value": 5,
+          "metric": 2.7130333688769115,
+          "delta": 0.15497697847649805
+        }
+      ],
+      "maxDelta": 0.15497697847649805,
+      "normalizedSensitivity": 0.0344393285503329,
+      "range": [
+        0.5,
+        5
+      ]
+    },
+    {
+      "param": "trailGivePct",
+      "category": "Exit",
+      "baseValue": 12,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 4,
+          "metric": 2.640696977688106,
+          "delta": 0.08264058728769275
+        },
+        {
+          "value": 8,
+          "metric": 2.543815591578194,
+          "delta": -0.014240798822219514
+        },
+        {
+          "value": 12,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 17,
+          "metric": 1.2002130421251769,
+          "delta": -1.3578433482752366
+        },
+        {
+          "value": 21,
+          "metric": 1.0276617777110924,
+          "delta": -1.530394612689321
+        },
+        {
+          "value": 25,
+          "metric": 1.0250340269332414,
+          "delta": -1.533022363467172
+        }
+      ],
+      "maxDelta": 1.533022363467172,
+      "normalizedSensitivity": 0.0730010649270082,
+      "range": [
+        4,
+        25
+      ]
+    },
+    {
+      "param": "bullTrailGivePct",
+      "category": "Exit",
+      "baseValue": 25,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 10,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 16,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 22,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 28,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 34,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 40,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        10,
+        40
+      ]
+    },
+    {
+      "param": "bullDipPct",
+      "category": "Entry",
+      "baseValue": 0.5,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.56,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.9200000000000002,
+          "metric": 2.6374953078760917,
+          "delta": 0.07943891747567822
+        },
+        {
+          "value": 1.28,
+          "metric": 2.6374953078760917,
+          "delta": 0.07943891747567822
+        },
+        {
+          "value": 1.6400000000000001,
+          "metric": 2.6374953078760917,
+          "delta": 0.07943891747567822
+        },
+        {
+          "value": 2,
+          "metric": 2.709242209784379,
+          "delta": 0.15118581938396547
+        }
+      ],
+      "maxDelta": 0.15118581938396547,
+      "normalizedSensitivity": 0.08399212187998081,
+      "range": [
+        0.2,
+        2
+      ]
+    },
+    {
+      "param": "bullRipPct",
+      "category": "Entry",
+      "baseValue": 1.5,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.5,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1.2000000000000002,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1.9000000000000001,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2.6,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 3.3000000000000003,
+          "metric": 2.58027690771009,
+          "delta": 0.02222051730967678
+        },
+        {
+          "value": 4,
+          "metric": 2.58640312509919,
+          "delta": 0.028346734698776466
+        }
+      ],
+      "maxDelta": 0.028346734698776466,
+      "normalizedSensitivity": 0.008099067056793276,
+      "range": [
+        0.5,
+        4
+      ]
+    },
+    {
+      "param": "bearDipPct",
+      "category": "Entry",
+      "baseValue": 0.8,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.3,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.8400000000000001,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1.3800000000000001,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1.9200000000000002,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2.46,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 3,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        0.3,
+        3
+      ]
+    },
+    {
+      "param": "bearRipPct",
+      "category": "Entry",
+      "baseValue": 2.1,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.5,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1.4,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2.3,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 3.1999999999999997,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 4.1,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 5,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        0.5,
+        5
+      ]
+    },
+    {
+      "param": "bearRsiMax",
+      "category": "Entry",
+      "baseValue": 35,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 20,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 25,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 30,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 35,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 40,
+          "metric": 2.5671928782114617,
+          "delta": 0.009136487811048255
+        },
+        {
+          "value": 45,
+          "metric": 2.5470192165311887,
+          "delta": -0.011037173869224759
+        }
+      ],
+      "maxDelta": 0.011037173869224759,
+      "normalizedSensitivity": 0.00044148695476899037,
+      "range": [
+        20,
+        45
+      ]
+    },
+    {
+      "param": "bullRegimeThreshold",
+      "category": "Regime",
+      "baseValue": 7,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 2,
+          "metric": 1.4624365551830893,
+          "delta": -1.095619835217324
+        },
+        {
+          "value": 4.6,
+          "metric": 2.39434940182454,
+          "delta": -0.1637069885758735
+        },
+        {
+          "value": 7.2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 9.8,
+          "metric": 2.297572904132222,
+          "delta": -0.2604834862681913
+        },
+        {
+          "value": 12.4,
+          "metric": 2.507367285080966,
+          "delta": -0.05068910531944759
+        },
+        {
+          "value": 15,
+          "metric": 2.657025977052875,
+          "delta": 0.09896958665246158
+        }
+      ],
+      "maxDelta": 1.095619835217324,
+      "normalizedSensitivity": 0.08427844886287109,
+      "range": [
+        2,
+        15
+      ]
+    },
+    {
+      "param": "bullDipScale",
+      "category": "Regime",
+      "baseValue": 3,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 1,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 3,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 4,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 5,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 6,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        1,
+        6
+      ]
+    },
+    {
+      "param": "regimeSizeUpMult",
+      "category": "Sizing",
+      "baseValue": 2,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 1,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1.6,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2.2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2.8,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 3.4000000000000004,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 4,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        1,
+        4
+      ]
+    },
+    {
+      "param": "regimeSizeDownMult",
+      "category": "Sizing",
+      "baseValue": 0.75,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.3,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.43999999999999995,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.58,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.72,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.8599999999999999,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1,
+          "metric": 2.567105506711787,
+          "delta": 0.009049116311373506
+        }
+      ],
+      "maxDelta": 0.009049116311373506,
+      "normalizedSensitivity": 0.012927309016247867,
+      "range": [
+        0.3,
+        1
+      ]
+    },
+    {
+      "param": "bullBuyPctOfUsdc",
+      "category": "Sizing",
+      "baseValue": 0.15,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.05,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.1,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.15000000000000002,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.25,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.3,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        0.05,
+        0.3
+      ]
+    },
+    {
+      "param": "anchorCooldownBars",
+      "category": "Gates",
+      "baseValue": 2,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 4,
+          "metric": 2.5085138552305106,
+          "delta": -0.04954253516990281
+        },
+        {
+          "value": 6,
+          "metric": 2.6758695186084585,
+          "delta": 0.11781312820804501
+        },
+        {
+          "value": 8,
+          "metric": 2.707091313339212,
+          "delta": 0.1490349229387986
+        },
+        {
+          "value": 10,
+          "metric": 2.5968127027005132,
+          "delta": 0.03875631230009979
+        }
+      ],
+      "maxDelta": 0.1490349229387986,
+      "normalizedSensitivity": 0.01490349229387986,
+      "range": [
+        0,
+        10
+      ]
+    },
+    {
+      "param": "minExpectedEdgeBps",
+      "category": "Gates",
+      "baseValue": 5,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 6,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 12,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 18,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 24,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 30,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        0,
+        30
+      ]
+    },
+    {
+      "param": "maxSolAllocationPct",
+      "category": "Risk",
+      "baseValue": 60,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 30,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 42,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 54,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 66,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 78,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 90,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        30,
+        90
+      ]
+    },
+    {
+      "param": "minSolReserve",
+      "category": "Risk",
+      "baseValue": 0.05,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0.01,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.04800000000000001,
+          "metric": 0.8072597293160193,
+          "delta": -1.7507966610843941
+        },
+        {
+          "value": 0.08600000000000001,
+          "metric": 0.743794597450572,
+          "delta": -1.8142617929498415
+        },
+        {
+          "value": 0.12399999999999999,
+          "metric": 0.4842687636647283,
+          "delta": -2.073787626735685
+        },
+        {
+          "value": 0.16200000000000003,
+          "metric": 0.43140104301142446,
+          "delta": -2.126655347388989
+        },
+        {
+          "value": 0.2,
+          "metric": 0.6758367252269377,
+          "delta": -1.8822196651734757
+        }
+      ],
+      "maxDelta": 2.126655347388989,
+      "normalizedSensitivity": 11.19292288099468,
+      "range": [
+        0.01,
+        0.2
+      ]
+    },
+    {
+      "param": "bullMinSolHold",
+      "category": "Risk",
+      "baseValue": 0,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 0,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.2,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.4,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.6,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 0.8,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 1,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        }
+      ],
+      "maxDelta": 0,
+      "normalizedSensitivity": 0,
+      "range": [
+        0,
+        1
+      ]
+    },
+    {
+      "param": "simFeeBps",
+      "category": "Costs",
+      "baseValue": 30,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 10,
+          "metric": 2.633244307825651,
+          "delta": 0.07518791742523767
+        },
+        {
+          "value": 20,
+          "metric": 2.5954362250841805,
+          "delta": 0.037379834683767044
+        },
+        {
+          "value": 30,
+          "metric": 2.5580563904004134,
+          "delta": 0
+        },
+        {
+          "value": 40,
+          "metric": 2.521097672615691,
+          "delta": -0.036958717784722595
+        },
+        {
+          "value": 50,
+          "metric": 2.4845530979575923,
+          "delta": -0.07350329244282117
+        },
+        {
+          "value": 60,
+          "metric": 2.4484158457286274,
+          "delta": -0.10964054467178608
+        }
+      ],
+      "maxDelta": 0.10964054467178608,
+      "normalizedSensitivity": 0.0021928108934357216,
+      "range": [
+        10,
+        60
+      ]
+    },
+    {
+      "param": "simSlippageBps",
+      "category": "Costs",
+      "baseValue": 8,
+      "baseMetric": 2.5580563904004134,
+      "sensitivities": [
+        {
+          "value": 2,
+          "metric": 2.512329233224971,
+          "delta": -0.04572715717544229
+        },
+        {
+          "value": 6,
+          "metric": 4.595748953822234,
+          "delta": 2.0376925634218206
+        },
+        {
+          "value": 9,
+          "metric": 4.814035129141653,
+          "delta": 2.25597873874124
+        },
+        {
+          "value": 13,
+          "metric": 2.5106589898807212,
+          "delta": -0.04739740051969221
+        },
+        {
+          "value": 16,
+          "metric": 2.4473414175849464,
+          "delta": -0.11071497281546705
+        },
+        {
+          "value": 20,
+          "metric": 4.6365351640158465,
+          "delta": 2.078478773615433
+        }
+      ],
+      "maxDelta": 2.25597873874124,
+      "normalizedSensitivity": 0.1253321521522911,
+      "range": [
+        2,
+        20
+      ]
+    }
+  ],
+  "varianceDecomposition": {
+    "totalFirstOrder": 1.4382247803335986,
+    "totalOrder": 2.0980868303885822,
+    "interactionStrength": 0.6598620500549837,
+    "interactions": [
+      {
+        "name": "bullTrailGivePct",
+        "interaction": 0.233082729224724,
+        "category": "Exit"
+      },
+      {
+        "name": "bullRegimeThreshold",
+        "interaction": 0.2030523165944983,
+        "category": "Regime"
+      },
+      {
+        "name": "trailGivePct",
+        "interaction": 0.20242384632483978,
+        "category": "Exit"
+      },
+      {
+        "name": "emaPeriod",
+        "interaction": 0.13839657173142,
+        "category": "Trend"
+      },
+      {
+        "name": "regimeEmaSlow",
+        "interaction": 0.10974513217198179,
+        "category": "Regime"
+      },
+      {
+        "name": "minSolReserve",
+        "interaction": 0.10324829306904276,
+        "category": "Risk"
+      },
+      {
+        "name": "bearRsiMax",
+        "interaction": 0.07701108932662559,
+        "category": "Entry"
+      },
+      {
+        "name": "rsiPeriod",
+        "interaction": 0.06109460169428816,
+        "category": "RSI"
+      },
+      {
+        "name": "anchorCooldownBars",
+        "interaction": 0.014650015970925686,
+        "category": "Gates"
+      },
+      {
+        "name": "bullMinSolHold",
+        "interaction": 0.0100561421972385,
+        "category": "Risk"
+      },
+      {
+        "name": "stopLossPct",
+        "interaction": -0.005390658155212336,
+        "category": "Exit"
+      },
+      {
+        "name": "rsiOversold",
+        "interaction": -0.01957119721489001,
+        "category": "RSI"
+      },
+      {
+        "name": "simSlippageBps",
+        "interaction": -0.02189558013396717,
+        "category": "Costs"
+      },
+      {
+        "name": "trailArmPct",
+        "interaction": -0.026792867724221885,
+        "category": "Exit"
+      },
+      {
+        "name": "regimeSizeUpMult",
+        "interaction": -0.029016084089205016,
+        "category": "Sizing"
+      },
+      {
+        "name": "bullDipPct",
+        "interaction": -0.029125972466090645,
+        "category": "Entry"
+      },
+      {
+        "name": "simFeeBps",
+        "interaction": -0.03129029601939548,
+        "category": "Costs"
+      },
+      {
+        "name": "bullRipPct",
+        "interaction": -0.03243879364843838,
+        "category": "Entry"
+      },
+      {
+        "name": "bearRipPct",
+        "interaction": -0.032844160301244624,
+        "category": "Entry"
+      },
+      {
+        "name": "rsiOverbought",
+        "interaction": -0.03288872556058887,
+        "category": "RSI"
+      },
+      {
+        "name": "regimeSizeDownMult",
+        "interaction": -0.03298175612565568,
+        "category": "Sizing"
+      },
+      {
+        "name": "bullBuyPctOfUsdc",
+        "interaction": -0.03298175612565568,
+        "category": "Sizing"
+      },
+      {
+        "name": "minExpectedEdgeBps",
+        "interaction": -0.03298175612565568,
+        "category": "Gates"
+      },
+      {
+        "name": "maxSolAllocationPct",
+        "interaction": -0.03298175612565568,
+        "category": "Risk"
+      },
+      {
+        "name": "bullDipScale",
+        "interaction": -0.033048670203526614,
+        "category": "Regime"
+      },
+      {
+        "name": "bearDipPct",
+        "interaction": -0.033137836436485164,
+        "category": "Entry"
+      },
+      {
+        "name": "profitTargetPct",
+        "interaction": -0.033530821794712784,
+        "category": "Exit"
+      }
+    ]
+  },
+  "safeRanges": {
+    "emaPeriod": {
+      "min": 18,
+      "max": 30,
+      "base": 20,
+      "widthPct": 60
+    },
+    "regimeEmaSlow": {
+      "min": 40,
+      "max": 72,
+      "base": 50,
+      "widthPct": 80
+    },
+    "rsiOversold": {
+      "min": 25,
+      "max": 45,
+      "base": 40,
+      "widthPct": 100
+    },
+    "rsiOverbought": {
+      "min": 60,
+      "max": 85,
+      "base": 70,
+      "widthPct": 100
+    },
+    "rsiPeriod": {
+      "min": 7,
+      "max": 21,
+      "base": 14,
+      "widthPct": 100
+    },
+    "profitTargetPct": {
+      "min": 1,
+      "max": 8,
+      "base": 3,
+      "widthPct": 100
+    },
+    "stopLossPct": {
+      "min": 4,
+      "max": 4,
+      "base": 8,
+      "widthPct": 0
+    },
+    "trailArmPct": {
+      "min": 0.5,
+      "max": 5,
+      "base": 2,
+      "widthPct": 100
+    },
+    "trailGivePct": {
+      "min": 4,
+      "max": 12,
+      "base": 12,
+      "widthPct": 38.095238095238095
+    },
+    "bullTrailGivePct": {
+      "min": 10,
+      "max": 40,
+      "base": 25,
+      "widthPct": 100
+    },
+    "bullDipPct": {
+      "min": 0.2,
+      "max": 2,
+      "base": 0.5,
+      "widthPct": 100
+    },
+    "bullRipPct": {
+      "min": 0.5,
+      "max": 4,
+      "base": 1.5,
+      "widthPct": 100
+    },
+    "bearDipPct": {
+      "min": 0.3,
+      "max": 3,
+      "base": 0.8,
+      "widthPct": 100
+    },
+    "bearRipPct": {
+      "min": 0.5,
+      "max": 5,
+      "base": 2.1,
+      "widthPct": 100
+    },
+    "bearRsiMax": {
+      "min": 20,
+      "max": 45,
+      "base": 35,
+      "widthPct": 100
+    },
+    "bullRegimeThreshold": {
+      "min": 4.6,
+      "max": 15,
+      "base": 7,
+      "widthPct": 80
+    },
+    "bullDipScale": {
+      "min": 1,
+      "max": 6,
+      "base": 3,
+      "widthPct": 100
+    },
+    "regimeSizeUpMult": {
+      "min": 1,
+      "max": 4,
+      "base": 2,
+      "widthPct": 100
+    },
+    "regimeSizeDownMult": {
+      "min": 0.3,
+      "max": 1,
+      "base": 0.75,
+      "widthPct": 100
+    },
+    "bullBuyPctOfUsdc": {
+      "min": 0.05,
+      "max": 0.3,
+      "base": 0.15,
+      "widthPct": 100
+    },
+    "anchorCooldownBars": {
+      "min": 0,
+      "max": 10,
+      "base": 2,
+      "widthPct": 100
+    },
+    "minExpectedEdgeBps": {
+      "min": 0,
+      "max": 30,
+      "base": 5,
+      "widthPct": 100
+    },
+    "maxSolAllocationPct": {
+      "min": 30,
+      "max": 90,
+      "base": 60,
+      "widthPct": 100
+    },
+    "minSolReserve": {
+      "min": 0.01,
+      "max": 0.01,
+      "base": 0.05,
+      "widthPct": 0
+    },
+    "bullMinSolHold": {
+      "min": 0,
+      "max": 1,
+      "base": 0,
+      "widthPct": 100
+    },
+    "simFeeBps": {
+      "min": 10,
+      "max": 60,
+      "base": 30,
+      "widthPct": 100
+    },
+    "simSlippageBps": {
+      "min": 2,
+      "max": 16,
+      "base": 8,
+      "widthPct": 77.77777777777779
+    }
+  },
+  "classification": {
+    "critical": [
+      {
+        "name": "bullRegimeThreshold",
+        "ST": 0.3941068759758032,
+        "S1": 0.1910545593813049,
+        "category": "Regime"
+      },
+      {
+        "name": "emaPeriod",
+        "ST": 0.316218927747342,
+        "S1": 0.177822356015922,
+        "category": "Trend"
+      },
+      {
+        "name": "trailGivePct",
+        "ST": 0.30453689467689726,
+        "S1": 0.10211304835205748,
+        "category": "Exit"
+      },
+      {
+        "name": "bullTrailGivePct",
+        "ST": 0.2906006528661426,
+        "S1": 0.05751792364141861,
+        "category": "Exit"
+      },
+      {
+        "name": "regimeEmaSlow",
+        "ST": 0.261254524559715,
+        "S1": 0.1515093923877332,
+        "category": "Regime"
+      },
+      {
+        "name": "minSolReserve",
+        "ST": 0.19865766453281225,
+        "S1": 0.09540937146376949,
+        "category": "Risk"
+      },
+      {
+        "name": "bearRsiMax",
+        "ST": 0.16498446546678525,
+        "S1": 0.08797337614015965,
+        "category": "Entry"
+      }
+    ],
+    "important": [
+      {
+        "name": "rsiPeriod",
+        "ST": 0.06109460169428816,
+        "S1": 0,
+        "category": "RSI"
+      }
+    ],
+    "moderate": [
+      {
+        "name": "bullMinSolHold",
+        "ST": 0.033545372518452916,
+        "S1": 0.023489230321214416,
+        "category": "Risk"
+      },
+      {
+        "name": "stopLossPct",
+        "ST": 0.02013906064372928,
+        "S1": 0.025529718798941614,
+        "category": "Exit"
+      },
+      {
+        "name": "anchorCooldownBars",
+        "ST": 0.018116415897642287,
+        "S1": 0.0034663999267166012,
+        "category": "Gates"
+      },
+      {
+        "name": "rsiOversold",
+        "ST": 0.014340453206293593,
+        "S1": 0.0339116504211836,
+        "category": "RSI"
+      }
+    ],
+    "robust": [
+      {
+        "name": "trailArmPct",
+        "ST": 0.007239001116758087,
+        "S1": 0.03403186884097997,
+        "category": "Exit"
+      },
+      {
+        "name": "simSlippageBps",
+        "ST": 0.0057126691566755945,
+        "S1": 0.02760824929064276,
+        "category": "Costs"
+      },
+      {
+        "name": "regimeSizeUpMult",
+        "ST": 0.005539378855668644,
+        "S1": 0.03455546294487366,
+        "category": "Sizing"
+      },
+      {
+        "name": "bullDipPct",
+        "ST": 0.0011905933028602757,
+        "S1": 0.03031656576895092,
+        "category": "Entry"
+      },
+      {
+        "name": "rsiOverbought",
+        "ST": 0.0002523477119882219,
+        "S1": 0.03314107327257709,
+        "category": "RSI"
+      },
+      {
+        "name": "simFeeBps",
+        "ST": 0.00018299041893576708,
+        "S1": 0.03147328643833125,
+        "category": "Costs"
+      },
+      {
+        "name": "bullDipScale",
+        "ST": 0.00015189370191795432,
+        "S1": 0.03320056390544457,
+        "category": "Regime"
+      },
+      {
+        "name": "profitTargetPct",
+        "ST": 0.00013886887624958998,
+        "S1": 0.03366969067096237,
+        "category": "Exit"
+      },
+      {
+        "name": "bearDipPct",
+        "ST": 0.00006469687846588062,
+        "S1": 0.033202533314951044,
+        "category": "Entry"
+      },
+      {
+        "name": "bearRipPct",
+        "ST": 0.000010334263938340896,
+        "S1": 0.03285449456518297,
+        "category": "Entry"
+      },
+      {
+        "name": "bullRipPct",
+        "ST": 0.000008146319219084532,
+        "S1": 0.03244693996765746,
+        "category": "Entry"
+      },
+      {
+        "name": "regimeSizeDownMult",
+        "ST": 0,
+        "S1": 0.03298175612565568,
+        "category": "Sizing"
+      },
+      {
+        "name": "bullBuyPctOfUsdc",
+        "ST": 0,
+        "S1": 0.03298175612565568,
+        "category": "Sizing"
+      },
+      {
+        "name": "minExpectedEdgeBps",
+        "ST": 0,
+        "S1": 0.03298175612565568,
+        "category": "Gates"
+      },
+      {
+        "name": "maxSolAllocationPct",
+        "ST": 0,
+        "S1": 0.03298175612565568,
+        "category": "Risk"
+      }
+    ]
+  }
+}

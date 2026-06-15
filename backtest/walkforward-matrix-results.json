@@ -1,0 +1,171 @@
+{
+  "timestamp": "2026-06-15T02:12:48.210Z",
+  "dataFile": "sol-usd-1d-full.json",
+  "split": "70/30",
+  "trainCandles": 1391,
+  "testCandles": 597,
+  "trainDays": 1390,
+  "testDays": 596,
+  "configs": [
+    {
+      "label": "CONFIG A - ORIGINAL",
+      "config": {
+        "signalMinSec": 120,
+        "cooldownSec": 300,
+        "conflictEdgeResolution": false,
+        "bullDipPct": 0.8,
+        "bearDipPct": 0.5,
+        "bullRipPct": 1.2,
+        "bearRipPct": 1,
+        "stopLossPct": 12,
+        "profitTargetPct": 3,
+        "rsiOversold": 35,
+        "regimeEmaSlow": 45
+      },
+      "train": {
+        "returnPct": 2.1227657178242976,
+        "vsHoldPct": -79.94034202828021,
+        "maxDrawdownPct": 0.4499899131998589,
+        "trades": 42,
+        "wins": 16,
+        "losses": 4,
+        "winRatePct": 80,
+        "profitTargetFires": 10,
+        "stopFires": 4
+      },
+      "test": {
+        "returnPct": 14.4549444668226,
+        "vsHoldPct": 42.45980080029083,
+        "maxDrawdownPct": 7.026593565040275,
+        "trades": 22,
+        "wins": 14,
+        "losses": 2,
+        "winRatePct": 87.5,
+        "profitTargetFires": 4,
+        "stopFires": 2
+      },
+      "overfitGap": -12.332178748998302,
+      "testVsHoldPct": 42.45980080029083
+    },
+    {
+      "label": "CONFIG B - 3 ZERO-RISK",
+      "config": {
+        "signalMinSec": 60,
+        "cooldownSec": 60,
+        "conflictEdgeResolution": true,
+        "bullDipPct": 0.8,
+        "bearDipPct": 0.5,
+        "bullRipPct": 1.2,
+        "bearRipPct": 1,
+        "stopLossPct": 12,
+        "profitTargetPct": 3,
+        "rsiOversold": 35,
+        "regimeEmaSlow": 45
+      },
+      "train": {
+        "returnPct": 2.1227657178242976,
+        "vsHoldPct": -79.94034202828021,
+        "maxDrawdownPct": 0.4499899131998589,
+        "trades": 42,
+        "wins": 16,
+        "losses": 4,
+        "winRatePct": 80,
+        "profitTargetFires": 10,
+        "stopFires": 4
+      },
+      "test": {
+        "returnPct": 14.4549444668226,
+        "vsHoldPct": 42.45980080029083,
+        "maxDrawdownPct": 7.026593565040275,
+        "trades": 22,
+        "wins": 14,
+        "losses": 2,
+        "winRatePct": 87.5,
+        "profitTargetFires": 4,
+        "stopFires": 2
+      },
+      "overfitGap": -12.332178748998302,
+      "testVsHoldPct": 42.45980080029083
+    },
+    {
+      "label": "CONFIG C - TIER 2",
+      "config": {
+        "signalMinSec": 60,
+        "cooldownSec": 60,
+        "conflictEdgeResolution": true,
+        "bullDipPct": 0.5,
+        "bearDipPct": 0.8,
+        "bullRipPct": 1.2,
+        "bearRipPct": 1,
+        "stopLossPct": 12,
+        "profitTargetPct": 3,
+        "rsiOversold": 35,
+        "regimeEmaSlow": 50
+      },
+      "train": {
+        "returnPct": 2.129559809184881,
+        "vsHoldPct": -79.93354793691962,
+        "maxDrawdownPct": 0.4498713132096181,
+        "trades": 38,
+        "wins": 15,
+        "losses": 4,
+        "winRatePct": 78.94736842105263,
+        "profitTargetFires": 10,
+        "stopFires": 4
+      },
+      "test": {
+        "returnPct": 14.470533649851275,
+        "vsHoldPct": 42.47538998331951,
+        "maxDrawdownPct": 7.014908593941017,
+        "trades": 22,
+        "wins": 14,
+        "losses": 2,
+        "winRatePct": 87.5,
+        "profitTargetFires": 3,
+        "stopFires": 2
+      },
+      "overfitGap": -12.340973840666393,
+      "testVsHoldPct": 42.47538998331951
+    },
+    {
+      "label": "CONFIG D - SWEEP BEST",
+      "config": {
+        "signalMinSec": 60,
+        "cooldownSec": 60,
+        "conflictEdgeResolution": true,
+        "bullDipPct": 0.5,
+        "bearDipPct": 0.8,
+        "bullRipPct": 1,
+        "bearRipPct": 0.8,
+        "stopLossPct": 10,
+        "profitTargetPct": 2,
+        "rsiOversold": 30,
+        "regimeEmaSlow": 50
+      },
+      "train": {
+        "returnPct": 0.8161024380783961,
+        "vsHoldPct": -81.2470053080261,
+        "maxDrawdownPct": 0.2922895884151818,
+        "trades": 31,
+        "wins": 10,
+        "losses": 6,
+        "winRatePct": 62.5,
+        "profitTargetFires": 7,
+        "stopFires": 6
+      },
+      "test": {
+        "returnPct": 14.470533649851275,
+        "vsHoldPct": 42.47538998331951,
+        "maxDrawdownPct": 7.014908593941017,
+        "trades": 22,
+        "wins": 14,
+        "losses": 2,
+        "winRatePct": 87.5,
+        "profitTargetFires": 3,
+        "stopFires": 2
+      },
+      "overfitGap": -13.654431211772879,
+      "testVsHoldPct": 42.47538998331951
+    }
+  ]
+}
