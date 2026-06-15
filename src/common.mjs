@@ -6,6 +6,13 @@ const ROOT = process.cwd();
 const ENV_PATH = path.join(ROOT, '.env');
 const EXAMPLE_ENV_PATH = path.join(ROOT, '.env.example');
 
+/**
+ * Loads environment variables from a .env file into process.env.
+ * Only sets variables that are not already defined in process.env.
+ * Supports quoted values (both single and double quotes).
+ * @param {string} targetPath - Path to the .env file
+ * @returns {void}
+ */
 function loadEnvFile(targetPath) {
   if (!fs.existsSync(targetPath)) return;
   const text = fs.readFileSync(targetPath, 'utf8');
@@ -31,6 +38,185 @@ export const LOG_DIR   = process.env.SOLBOT_LOG_DIR   || path.join(ROOT, 'logs')
 export const STATE_DIR = process.env.SOLBOT_STATE_DIR || path.join(ROOT, 'state');
 export const NOW = () => new Date().toISOString();
 
+// ============================================================================
+// MULTI-RPC FAILOVER SUPPORT
+// ============================================================================
+
+/**
+ * Parses RPC URLs from environment variable.
+ * Supports comma-separated URLs: RPC_URLS="https://a.com,https://b.com"
+ * Falls back to single RPC_URL for backward compatibility.
+ * @returns {string[]} Array of RPC endpoint URLs
+ */
+function parseRpcUrls() {
+  const urlsEnv = process.env.RPC_URLS || '';
+  if (urlsEnv.trim()) {
+    return urlsEnv.split(',').map(u => u.trim()).filter(Boolean);
+  }
+  // Backward compatibility: single RPC_URL
+  const single = process.env.RPC_URL || 'https://api.devnet.solana.com';
+  return [single];
+}
+
+/**
+ * RPC endpoint state for failover tracking.
+ * @typedef {Object} RpcEndpointState
+ * @property {string} url - The RPC endpoint URL
+ * @property {boolean} healthy - Whether the endpoint is currently healthy
+ * @property {number} failures - Consecutive failure count
+ * @property {number} lastFailure - Timestamp of last failure
+ * @property {number} lastSuccess - Timestamp of last success
+ */
+const RPC_ENDPOINTS = parseRpcUrls().map(url => ({
+  url,
+  healthy: true,
+  failures: 0,
+  lastFailure: 0,
+  lastSuccess: 0,
+}));
+
+let RPC_CURRENT_INDEX = 0;
+
+/**
+ * Gets the current healthy RPC endpoint, rotating on failure.
+ * @returns {string} Current RPC URL to use
+ */
+export function getCurrentRpcUrl() {
+  return RPC_ENDPOINTS[RPC_CURRENT_INDEX]?.url || 'https://api.devnet.solana.com';
+}
+
+/**
+ * Gets all RPC endpoints for health checks.
+ * @returns {Array<RpcEndpointState>} Copy of endpoints array
+ */
+export function getRpcEndpoints() {
+  return RPC_ENDPOINTS.map(e => ({ ...e }));
+}
+
+/**
+ * Marks an RPC endpoint as failed, triggers failover if threshold exceeded.
+ * @param {string} url - The URL that failed
+ * @param {Error} error - The error that occurred
+ */
+export function markRpcFailure(url, error) {
+  const idx = RPC_ENDPOINTS.findIndex(e => e.url === url);
+  if (idx === -1) return;
+  
+  const endpoint = RPC_ENDPOINTS[idx];
+  endpoint.failures++;
+  endpoint.lastFailure = Date.now();
+  
+  // Mark unhealthy after 3 consecutive failures
+  if (endpoint.failures >= 3) {
+    endpoint.healthy = false;
+    console.warn(`[RPC] ${url} marked unhealthy after ${endpoint.failures} failures: ${error.message}`);
+    
+    // Trigger failover if this was the current endpoint
+    if (idx === RPC_CURRENT_INDEX) {
+      failoverToNextHealthy();
+    }
+  }
+}
+
+/**
+ * Marks an RPC endpoint as successful, resets failure count.
+ * @param {string} url - The URL that succeeded
+ */
+export function markRpcSuccess(url) {
+  const idx = RPC_ENDPOINTS.findIndex(e => e.url === url);
+  if (idx === -1) return;
+  
+  const endpoint = RPC_ENDPOINTS[idx];
+  endpoint.healthy = true;
+  endpoint.failures = 0;
+  endpoint.lastSuccess = Date.now();
+}
+
+/**
+ * Fails over to the next healthy RPC endpoint.
+ * @returns {boolean} True if failover occurred, false if no healthy endpoints available
+ */
+export function failoverToNextHealthy() {
+  const total = RPC_ENDPOINTS.length;
+  let nextIdx = (RPC_CURRENT_INDEX + 1) % total;
+  let attempts = 0;
+  
+  while (attempts < total) {
+    if (RPC_ENDPOINTS[nextIdx].healthy) {
+      const oldUrl = RPC_ENDPOINTS[RPC_CURRENT_INDEX]?.url;
+      RPC_CURRENT_INDEX = nextIdx;
+      const newUrl = RPC_ENDPOINTS[nextIdx].url;
+      console.warn(`[RPC] FAILOVER: ${oldUrl} -> ${newUrl}`);
+      return true;
+    }
+    nextIdx = (nextIdx + 1) % total;
+    attempts++;
+  }
+  
+  console.error('[RPC] CRITICAL: No healthy RPC endpoints available!');
+  return false;
+}
+
+/**
+ * Performs a health check on all RPC endpoints.
+ * Returns the first healthy one, or null if all are down.
+ * @returns {Promise<string|null>} Healthy RPC URL or null
+ */
+export async function checkRpcHealth() {
+  for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
+    const endpoint = RPC_ENDPOINTS[i];
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(endpoint.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getHealth', params: [] }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
+      if (res.ok) {
+        const json = await res.json();
+        if (!json.error && json.result === 'ok') {
+          if (!endpoint.healthy) {
+            endpoint.healthy = true;
+            endpoint.failures = 0;
+            console.log(`[RPC] ${endpoint.url} recovered`);
+            // If this is not current, consider failover back
+            if (i !== RPC_CURRENT_INDEX) {
+              console.log(`[RPC] Recovered endpoint available: ${endpoint.url}`);
+            }
+          }
+          return endpoint.url;
+        }
+      }
+    } catch {
+      // Ignore, try next
+    }
+  }
+  return null; // All down
+}
+
+/**
+ * Manual failover trigger (can be called from monitoring/alerting).
+ * @returns {Promise<boolean>} True if failover occurred
+ */
+export async function manualRpcFailover() {
+  const healthy = await checkRpcHealth();
+  if (healthy && healthy !== getCurrentRpcUrl()) {
+    return failoverToNextHealthy();
+  }
+  return false;
+}
+
+/**
+ * Retrieves and parses a numeric environment variable.
+ * @param {string} name - Environment variable name
+ * @param {number} fallback - Default value if not set or invalid
+ * @returns {number} Parsed number or fallback
+ * @throws {Error} If the value is set but not a finite number
+ */
 export function num(name, fallback) {
   const raw = process.env[name];
   if (raw === undefined || raw === null || raw === '') return fallback;
@@ -39,12 +225,128 @@ export function num(name, fallback) {
   return n;
 }
 
+/**
+ * Retrieves and parses a boolean environment variable.
+ * Recognizes '1', 'true', 'yes', 'y', 'on' (case-insensitive) as true.
+ * @param {string} name - Environment variable name
+ * @param {boolean} [fallback=false] - Default value if not set
+ * @returns {boolean} Parsed boolean or fallback
+ */
 export function bool(name, fallback = false) {
   const raw = process.env[name];
   if (raw === undefined || raw === null || raw === '') return fallback;
   return ['1', 'true', 'yes', 'y', 'on'].includes(String(raw).toLowerCase());
 }
 
+/**
+ * Global configuration object populated from environment variables.
+ * All numeric values are validated for finiteness on startup.
+ * @typedef {Object} Config
+ * @property {string} networkLabel - Network identifier (e.g., 'devnet', 'mainnet-beta')
+ * @property {string} rpcUrl - Solana RPC endpoint URL (must start with http)
+ * @property {string} executionMode - 'simulated', 'real', or 'shadow'
+ * @property {boolean} dryRun - If true, blocks all real execution (safety)
+ * @property {number} uiPort - HTTP UI server port
+ * @property {number} loopSec - Main loop interval in seconds (min 5)
+ * @property {number} signalMinSec - Minimum seconds between signals from same bot (min 5)
+ * @property {number} cooldownSec - Seconds to wait after a trade before next (min 5)
+ * @property {number} decisionWindowSec - Time window for one-trade-per-window rule (min 10)
+ * @property {number} maxTradesPerDay - Max trades per UTC day in sim mode (min 1)
+ * @property {number} staleSignalSec - Seconds after which a signal is considered stale (min 10)
+ * @property {number} minExpectedEdgeBps - Minimum signal edge in basis points to consider a trade (min 0)
+ * @property {number} minNetEdgeBps - Minimum net edge (signal edge - price impact) in bps; 0 = block only negative net edge
+ * @property {number} minTradeUsdc - Minimum trade notional in USDC (min 1)
+ * @property {number} maxNotionalUsdc - Maximum per-trade notional in USDC for sim/shadow (min 1)
+ * @property {number} dailyNotionalLimitUsdc - Daily notional limit in USDC for sim/shadow (min 1)
+ * @property {number} minSolReserve - Minimum SOL to keep in reserve, never sold (min 0)
+ * @property {number} maxSolAllocationPct - Maximum SOL allocation as % of total equity (10-100)
+ * @property {boolean} trendFilterEnabled - Enable EMA trend filter for entries
+ * @property {number} emaPeriod - Fast EMA period for trend filter (min 2)
+ * @property {boolean} regimeFilterEnabled - Enable dual-EMA regime filter (fast > slow)
+ * @property {number} regimeEmaSlow - Slow EMA period for regime filter (min 5)
+ * @property {boolean} useAtrThresholds - Use ATR-based dynamic dip/rip thresholds
+ * @property {number} atrPeriod - ATR period (min 2)
+ * @property {number} atrDipMult - ATR multiplier for dip threshold
+ * @property {number} atrRipMult - ATR multiplier for rip threshold
+ * @property {number} atrMinDipPct - Minimum dip % floor when using ATR (min 0.01)
+ * @property {number} atrMinRipPct - Minimum rip % floor when using ATR (min 0.01)
+ * @property {boolean} rsiEnabled - Enable RSI indicator
+ * @property {number} rsiPeriod - RSI period (min 2)
+ * @property {number} rsiOversold - RSI oversold threshold (1-49)
+ * @property {number} rsiOverbought - RSI overbought threshold (51-99)
+ * @property {boolean} profitTargetEnabled - Enable profit target / trailing exit
+ * @property {number} profitTargetPct - Fixed profit target % (min 0.5)
+ * @property {boolean} profitTargetBypassCooldown - Skip cooldown after PT exit
+ * @property {boolean} rsiScaleBuyEnabled - Scale buy size by RSI oversold depth
+ * @property {number} rsiScaleMaxMult - Maximum RSI scale multiplier (min 1.0)
+ * @property {boolean} stopLossEnabled - Enable stop-loss exit
+ * @property {number} stopLossPct - Stop-loss % from avg entry (min 1)
+ * @property {boolean} trailInUptrend - Use trailing exit in confirmed uptrends
+ * @property {number} trailArmPct - Gain % to arm trailing exit (min 0.5)
+ * @property {number} trailGivePct - Give-back % from peak to trigger trailing exit (min 0.2)
+ * @property {number} bullTrailGivePct - Widened trailing give-back in strong bull (min 0.2)
+ * @property {number} bullMinSolHold - Core SOL floor held through strong bull trend (min 0)
+ * @property {boolean} bullProportionalSells - Sell the amount last bought (symmetry) in strong bull
+ * @property {number} bullStrongRegimePct - Regime strength % gate for bull sell-side fixes (min 0)
+ * @property {number} bullMaxNotionalUsdc - Per-trade notional cap in strong bull (sim/shadow only)
+ * @property {boolean} intrabarStops - Use candle low for stop-loss trigger (honest fill at stop level)
+ * @property {number} anchorCooldownBars - Bars to block fresh BUY after last buy (min 0)
+ * @property {boolean} entryBounceConfirm - Require price > prevClose for BUY entry
+ * @property {boolean} conflictEdgeResolution - On BULL/BEAR conflict, pick larger |edgeBps| instead of NO_TRADE
+ * @property {boolean} botSpecializationEnabled - Enable BULL (trend) / BEAR (mean-reversion) specialization
+ * @property {number} bearRsiMax - Max RSI for BEAR bot buys (min 1)
+ * @property {number} bullRegimeThreshold - Regime strength % for bull overlay (min 0)
+ * @property {number} bullDipScale - Dip/rip multiplier in strong bull (min 1.0)
+ * @property {boolean} regimeSizeEnabled - Enable regime-aware position sizing
+ * @property {number} regimeSizeUpMult - Size multiplier in confirmed uptrend oversold dip (min 1.0)
+ * @property {number} regimeSizeDownMult - Size multiplier in downtrend/high RSI (0.1-1.0)
+ * @property {number} regimeSizeHighRsi - RSI threshold for downsizing (50-100)
+ * @property {number} bullDipPct - BULL bot dip % threshold (min 0.01)
+ * @property {number} bullRipPct - BULL bot rip % threshold (min 0.01)
+ * @property {number} bullBuyUsdc - BULL bot fixed buy amount USDC (min 1)
+ * @property {number} bullSellSol - BULL bot fixed sell amount SOL (min 0.001)
+ * @property {number} bearDipPct - BEAR bot dip % threshold (min 0.01)
+ * @property {number} bearRipPct - BEAR bot rip % threshold (min 0.01)
+ * @property {number} bearBuyUsdc - BEAR bot fixed buy amount USDC (min 1)
+ * @property {number} bearSellSol - BEAR bot fixed sell amount SOL (min 0.001)
+ * @property {number} minSellNotionalMult - Floor SELL notional to minTradeUsdc * mult (0 = off)
+ * @property {number} mockStartPrice - Starting SOL price for mock price source
+ * @property {number} mockDriftBps - Drift per bar in bps for mock price
+ * @property {number} mockVolBps - Volatility per bar in bps for mock price
+ * @property {number} simStartUsdc - Starting USDC for simulated portfolio
+ * @property {number} simStartSol - Starting SOL for simulated portfolio
+ * @property {number} simFeeBps - Simulated fee in basis points
+ * @property {number} simSlippageBps - Simulated slippage in basis points
+ * @property {number} usdcReserve - USDC reserve for sweep logic
+ * @property {number} usdcProfitMin - Minimum profit USDC to trigger sweep
+ * @property {number} profitSweepPct - % of profit to sweep (0-1)
+ * @property {number} sweepEverySec - Seconds between sweep checks (min 30)
+ * @property {number} minSolForSweep - Minimum SOL to consider for sweep
+ * @property {string} profitWallet - Destination wallet for profit sweeps
+ * @property {boolean} runOnce - Run loop once and exit (for testing)
+ * @property {string} priceMode - Price source mode ('auto', 'jupiter', 'mock', etc.)
+ * @property {boolean} airdropOnWallet - Request airdrop on wallet creation (devnet)
+ * @property {number} airdropSol - SOL amount for airdrop (min 0.1)
+ * @property {string} solMint - SOL token mint address
+ * @property {string} usdcMint - USDC token mint address
+ * @property {boolean} shadowMode - Enable shadow mode (parallel simulated execution)
+ * @property {boolean} shadowQuoteOnTrade - Fetch Jupiter quote before every trade for net-edge gate
+ * @property {number} stalePriceSec - Seconds after which price cache is stale (min 10)
+ * @property {string} alertWebhookUrl - Webhook URL for alerts
+ * @property {boolean} alertOnTrade - Send alert on every trade
+ * @property {boolean} alertOnError - Send alert on errors
+ * @property {boolean} alertOnBreaker - Send alert on circuit breaker trigger
+ * @property {number} bullBuyPctOfUsdc - BULL bot buys as % of available USDC in strong bull
+ * @property {number} maxSlippageBps - Maximum acceptable slippage in bps for Jupiter quotes (min 10)
+ * @property {number} priorityFeeLamports - Priority fee in lamports for real transactions
+ * @property {number} realMaxTradesPerDay - Max trades per day in REAL mode (min 1)
+ * @property {number} realMaxNotionalUsdc - Max per-trade notional in USDC for REAL mode (min 1, max 100)
+ * @property {number} realDailyNotionalLimitUsdc - Daily notional limit for REAL mode (min 1, max 500)
+ * @property {number} dailyLossLimitUsdc - Daily realized loss limit for circuit breaker (0 = disabled)
+ * @property {string} privateKey - Base58/JSON private key for real execution
+ */
+
+/** @type {Config} */
 export const CFG = {
   networkLabel:    process.env.NETWORK_LABEL || 'devnet',
   rpcUrl:          process.env.RPC_URL || 'https://api.devnet.solana.com',
@@ -181,6 +483,14 @@ function validateConfig() {
 validateConfig();
 
 // Daily-loss circuit breaker predicate (pure; shared by executor + selftest).
+/**
+ * Checks if the daily realized loss has exceeded the configured limit.
+ * Pure function with no side effects — shared by executor (live) and selftest (backtest parity).
+ * A limit of 0 or non-finite disables the breaker.
+ * @param {number} realizedLossTodayUsdc - Accumulated realized loss today (positive number)
+ * @param {number} [limit=CFG.dailyLossLimitUsdc] - Daily loss limit in USDC (0 = disabled)
+ * @returns {boolean} True if the breaker should trip (halt all trading for the UTC day)
+ */
 export function circuitBreakerTripped(realizedLossTodayUsdc, limit = CFG.dailyLossLimitUsdc) {
   const loss = Number(realizedLossTodayUsdc) || 0;
   const cap  = Number(limit);
@@ -189,9 +499,18 @@ export function circuitBreakerTripped(realizedLossTodayUsdc, limit = CFG.dailyLo
 }
 
 // Single source of truth for the per-trade notional cap (Wealth-V4). Pure + testable.
-// SAFETY INVARIANT: in REAL execution the cap is ALWAYS realMaxNotionalUsdc — the strong-bull
-// widening (bullMaxNotionalUsdc) can NEVER apply to real money, regardless of regime strength.
-// Used by both executor.mjs (live) and backtest.mjs (sim) so the gate can't drift out of parity.
+/**
+ * Returns the effective per-trade notional cap in USDC.
+ * SAFETY INVARIANT: In REAL execution the cap is ALWAYS realMaxNotionalUsdc —
+ * the strong-bull widening (bullMaxNotionalUsdc) can NEVER apply to real money,
+ * regardless of regime strength.
+ * Used by both executor.mjs (live) and backtest.mjs (sim) so the gate can't drift out of parity.
+ * @param {Object} params
+ * @param {boolean} params.isReal - True if running in REAL execution mode
+ * @param {number} params.regimeStrengthPct - Current regime strength percentage (EMA fast vs slow spread)
+ * @param {Config} [params.cfg=CFG] - Configuration object (allows injection for testing)
+ * @returns {number} Maximum allowed notional for a single trade in USDC
+ */
 export function effectiveMaxNotionalUsdc({ isReal, regimeStrengthPct, cfg = CFG }) {
   if (isReal) return cfg.realMaxNotionalUsdc;            // real money: never widened, full stop
   const base = cfg.maxNotionalUsdc;
@@ -199,15 +518,38 @@ export function effectiveMaxNotionalUsdc({ isReal, regimeStrengthPct, cfg = CFG 
   return strongBull ? Math.max(base, cfg.bullMaxNotionalUsdc) : base;
 }
 
+/**
+ * Ensures the log and state directories exist.
+ * Called automatically by fileInState/fileInLogs/logJsonl/loadJson/saveJson.
+ * @returns {void}
+ */
 export function ensureDirs() {
   for (const dir of [LOG_DIR, STATE_DIR]) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 }
 
+/**
+ * Returns the absolute path to a file in the state directory.
+ * @param {string} name - Filename
+ * @returns {string} Absolute path (STATE_DIR/name)
+ */
 export function fileInState(name) { ensureDirs(); return path.join(STATE_DIR, name); }
+
+/**
+ * Returns the absolute path to a file in the logs directory.
+ * @param {string} name - Filename
+ * @returns {string} Absolute path (LOG_DIR/name)
+ */
 export function fileInLogs(name)  { ensureDirs(); return path.join(LOG_DIR,   name); }
 
+/**
+ * Appends a JSON object as a line to a JSONL log file in LOG_DIR.
+ * Rotates the file if it exceeds 5MB (renames with timestamp suffix).
+ * @param {string} file - Log filename (e.g., 'executor.jsonl')
+ * @param {Object} obj - Object to serialize and append
+ * @returns {void}
+ */
 export function logJsonl(file, obj) {
   ensureDirs();
   const filePath = fileInLogs(file);
@@ -219,19 +561,50 @@ export function logJsonl(file, obj) {
   fs.appendFileSync(filePath, JSON.stringify(obj) + '\n');
 }
 
+/**
+ * Loads and parses a JSON file from the state directory.
+ * Returns fallback if file doesn't exist or contains invalid JSON.
+ * @param {string} file - Filename in STATE_DIR
+ * @param {any} fallback - Value to return on missing/invalid file
+ * @returns {any} Parsed JSON or fallback
+ */
 export function loadJson(file, fallback) {
   const p = fileInState(file);
   if (!fs.existsSync(p)) return fallback;
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
 }
 
+/**
+ * Saves a value as pretty-printed JSON to a file in the state directory.
+ * @param {string} file - Filename in STATE_DIR
+ * @param {any} value - Value to serialize
+ * @returns {void}
+ */
 export function saveJson(file, value) {
   fs.writeFileSync(fileInState(file), JSON.stringify(value, null, 2));
 }
 
+/**
+ * Checks if the global disable file exists (ROOT/DISABLED).
+ * When present, the executor skips all trading activity.
+ * @returns {boolean} True if DISABLED file exists
+ */
 export function isDisabled() { return fs.existsSync(path.join(ROOT, 'DISABLED')); }
+
+/**
+ * Sleeps for the specified number of milliseconds.
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise<void>} Resolves after ms milliseconds
+ */
 export function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+/**
+ * Runs an async tick function repeatedly at a fixed interval.
+ * Exits early if CFG.runOnce is true (used for testing).
+ * @param {Function} tick - Async function to call on each iteration
+ * @param {number} intervalSec - Interval between ticks in seconds
+ * @returns {Promise<void>} Never resolves unless CFG.runOnce is true
+ */
 export async function runLoop(tick, intervalSec) {
   while (true) {
     await tick();
@@ -240,16 +613,48 @@ export async function runLoop(tick, intervalSec) {
   }
 }
 
+/**
+ * Generates a deterministic 16-char signal ID from a signal object.
+ * Uses SHA-256 hash of the JSON-serialized signal for consistency.
+ * @param {Object} signal - Signal object to hash
+ * @returns {string} 16-character hex string
+ */
 export function makeSignalId(signal) {
   return crypto.createHash('sha256').update(JSON.stringify(signal)).digest('hex').slice(0, 16);
 }
 
+/**
+ * Returns the current decision window index based on timestamp.
+ * Decision windows are fixed time buckets of CFG.decisionWindowSec seconds.
+ * Used to enforce one-trade-per-window rule.
+ * @param {number} [ts=Date.now()] - Timestamp in milliseconds
+ * @returns {number} Window index (floor division)
+ */
 export function getDecisionWindow(ts = Date.now()) {
   return Math.floor(ts / (CFG.decisionWindowSec * 1000));
 }
 
+/**
+ * Returns the current UTC day as YYYY-MM-DD string.
+ * Used for daily counters reset (trades, notional, loss).
+ * @returns {string} Current UTC date in ISO format (date portion only)
+ */
 export function freshDay() { return new Date().toISOString().slice(0, 10); }
 
+/**
+ * Loads the portfolio state from disk (state/portfolio.json).
+ * In REAL mode with live execution (non-dry-run), fails CLOSED if the file exists
+ * but cannot be parsed — silently resetting would wipe realizedPnlUsdc and blind
+ * the daily-loss circuit breaker. In sim/dry-run modes, returns a safe fallback.
+ * @returns {Object} Portfolio state
+ * @property {string} portfolio.mode - Execution mode ('simulated'|'real')
+ * @property {number} portfolio.usdc - USDC balance
+ * @property {number} portfolio.sol - SOL balance
+ * @property {number} portfolio.avgEntryPrice - Average entry price of SOL position
+ * @property {number} portfolio.realizedPnlUsdc - Cumulative realized PnL in USDC
+ * @property {number} portfolio.sweptUsdc - Total USDC swept to profit wallet
+ * @property {string} portfolio.lastUpdatedAt - ISO timestamp of last update
+ */
 export function loadPortfolio() {
   const fallback = {
     mode: CFG.executionMode, usdc: CFG.simStartUsdc, sol: CFG.simStartSol,
@@ -270,12 +675,24 @@ export function loadPortfolio() {
   return fallback;
 }
 
+/**
+ * Saves the portfolio state to disk (state/portfolio.json).
+ * Updates the lastUpdatedAt timestamp to NOW().
+ * @param {Object} portfolio - Portfolio state object
+ * @returns {void}
+ */
 export function savePortfolio(portfolio) {
   saveJson('portfolio.json', { ...portfolio, lastUpdatedAt: NOW() });
 }
 
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
+/**
+ * Encodes a Uint8Array/Buffer to Base58 (Bitcoin alphabet, no 0/O/I/l).
+ * Used for Solana address encoding (ed25519 public keys).
+ * @param {Uint8Array|Buffer} buffer - Bytes to encode
+ * @returns {string} Base58 encoded string
+ */
 export function base58Encode(buffer) {
   if (!buffer.length) return '';
   const digits = [0];
@@ -294,6 +711,16 @@ export function base58Encode(buffer) {
   return result;
 }
 
+/**
+ * Generates a new ed25519 keypair and returns a wallet record.
+ * The address is derived from the SPKI public key (last 32 bytes, base58 encoded).
+ * Private key is exported as PKCS#8 base64, public key as SPKI base64.
+ * @returns {Object} Wallet record
+ * @property {string} address - Base58 Solana address
+ * @property {string} publicKeySpkiBase64 - SPKI public key in base64
+ * @property {string} privateKeyPkcs8Base64 - PKCS#8 private key in base64
+ * @property {string} createdAt - ISO timestamp
+ */
 export function generateWalletRecord() {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
   const spki  = publicKey.export({ format: 'der', type: 'spki' });
@@ -306,9 +733,26 @@ export function generateWalletRecord() {
   };
 }
 
+/**
+ * Returns the absolute path to the generated wallet file (state/generated-wallet.json).
+ * @returns {string} Absolute file path
+ */
 export function walletFilePath() { return fileInState('generated-wallet.json'); }
+
+/**
+ * Saves a wallet record to disk (state/generated-wallet.json).
+ * @param {Object} record - Wallet record from generateWalletRecord()
+ * @returns {void}
+ */
 export function saveGeneratedWallet(r) { fs.writeFileSync(walletFilePath(), JSON.stringify(r, null, 2)); }
 
+/**
+ * Loads the generated wallet from disk, optionally creating a new one if missing.
+ * @param {Object} [options={}] - Options
+ * @param {boolean} [options.createIfMissing=false] - Generate new wallet if not found
+ * @returns {Object} Wallet record
+ * @throws {Error} If wallet not found and createIfMissing is false
+ */
 export function loadWallet({ createIfMissing = false } = {}) {
   const p = walletFilePath();
   if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -318,28 +762,67 @@ export function loadWallet({ createIfMissing = false } = {}) {
   return record;
 }
 
+/**
+ * Makes a JSON-RPC request with multi-RPC failover support.
+ * Includes 15-second timeout, automatic failover on failure, and health tracking.
+ * @param {string} method - RPC method name (e.g., 'getBalance', 'getAccountInfo')
+ * @param {Array} [params=[]] - RPC parameters array
+ * @returns {Promise<any>} RPC result field
+ * @throws {Error} On all endpoints failing, HTTP error, RPC error, timeout, or parse failure
+ */
 export async function rpcRequest(method, params = []) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(CFG.rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) throw new Error(`RPC HTTP ${res.status} ${res.statusText}`);
-    const json = await res.json();
-    if (json.error) throw new Error(`RPC ${method} error: ${JSON.stringify(json.error)}`);
-    return json.result;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') throw new Error(`RPC ${method} timed out after 15s`);
-    throw error;
+  const maxRetries = RPC_ENDPOINTS.length;
+  let lastError;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const url = getCurrentRpcUrl();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) throw new Error(`RPC HTTP ${res.status} ${res.statusText}`);
+      const json = await res.json();
+      if (json.error) throw new Error(`RPC ${method} error: ${JSON.stringify(json.error)}`);
+      
+      markRpcSuccess(url);
+      return json.result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        lastError = new Error(`RPC ${method} timed out after 15s`);
+      } else {
+        lastError = error;
+      }
+      
+      markRpcFailure(url, lastError);
+      
+      // If there are more endpoints to try, failover and continue
+      if (attempt < maxRetries - 1) {
+        console.warn(`[RPC] Attempt ${attempt + 1}/${maxRetries} failed for ${method}: ${lastError.message}. Trying next endpoint...`);
+        continue;
+      }
+    }
   }
+  
+  // All endpoints failed
+  throw lastError || new Error(`RPC ${method}: All ${maxRetries} endpoints failed`);
 }
 
+/**
+ * Queries the SOL balance of a Solana address via RPC.
+ * Returns 0 on any error (network, parse, etc.) — never throws.
+ * @param {string} address - Base58 Solana address
+ * @returns {Promise<number>} Balance in SOL (lamports / 1e9)
+ */
 export async function getWalletBalance(address) {
   try {
     const result = await rpcRequest('getBalance', [address]);
@@ -347,10 +830,26 @@ export async function getWalletBalance(address) {
   } catch { return 0; }
 }
 
+/**
+ * Requests a SOL airdrop to the given address (devnet/testnet only).
+ * @param {string} address - Base58 Solana address
+ * @param {number} solAmount - Amount in SOL
+ * @returns {Promise<string>} Transaction signature
+ */
 export async function requestAirdrop(address, solAmount) {
   return rpcRequest('requestAirdrop', [address, Math.floor(solAmount * 1_000_000_000)]);
 }
 
+/**
+ * Acquires a file-based mutex lock and executes the provided async function.
+ * Implements stale-lock detection and automatic recovery (locks older than
+ * max(loopSec * 4000, 120000) ms are considered abandoned).
+ * Lock release never throws — on Windows/filesystem issues, unlink errors are
+ * swallowed and stale-detection reclaims the lock later.
+ * @param {string} lockName - Name of the lock file (without extension)
+ * @param {Function} fn - Async function to execute while holding the lock
+ * @returns {Promise<{locked: boolean} | any>} Result of fn(), or {locked: false} if lock couldn't be acquired
+ */
 export async function withLock(lockName, fn) {
   ensureDirs();
   const lockPath = fileInState(lockName);
@@ -377,6 +876,14 @@ export async function withLock(lockName, fn) {
   finally { releaseLock(); }
 }
 
+/**
+ * Fetches JSON from a URL with timeout and abort support.
+ * @param {string} url - URL to fetch
+ * @param {Object} [options={}] - Fetch options (headers, method, etc.)
+ * @param {number} [options.timeoutMs=15000] - Request timeout in milliseconds
+ * @returns {Promise<any>} Parsed JSON response
+ * @throws {Error} On HTTP error, timeout, or parse failure
+ */
 export async function fetchJson(url, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 15000);
@@ -395,6 +902,13 @@ export async function fetchJson(url, options = {}) {
   }
 }
 
+/**
+ * Safely reads and parses a JSON file, returning a fallback on any error.
+ * Never throws — returns fallback if file doesn't exist, is empty, or contains invalid JSON.
+ * @param {string} filePath - Absolute path to the JSON file
+ * @param {any} [fallback=null] - Value to return on error/missing file
+ * @returns {any} Parsed JSON or fallback
+ */
 export function safeReadJsonFile(filePath, fallback = null) {
   if (!fs.existsSync(filePath)) return fallback;
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return fallback; }

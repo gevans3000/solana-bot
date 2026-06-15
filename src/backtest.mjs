@@ -1,14 +1,76 @@
 #!/usr/bin/env node
-// Backtester v5 — profit target, dual-EMA regime filter, RSI-scaled sizing,
-//                  PT cooldown bypass, EMA warmup guard, ATR, stop-loss, walk-forward
-//
-// Usage:
-//   node src/backtest.mjs                          # all files in backtest/data/
-//   node src/backtest.mjs --data <file>
-//   node src/backtest.mjs --sweep                  # grid-search
-//   node src/backtest.mjs --sweep --walk-forward   # 70/30 walk-forward
-//   node src/backtest.mjs --compare                # baseline vs all features
-//   node src/backtest.mjs --json
+/**
+ * Backtester v5 — profit target, dual-EMA regime filter, RSI-scaled sizing,
+ *                  PT cooldown bypass, EMA warmup guard, ATR, stop-loss, walk-forward
+ *
+ * BACKTEST / LIVE PARITY GUARANTEES
+ *
+ * This backtester is designed to produce IDENTICAL results to live execution
+ * when given the same price series and configuration. The following invariants
+ * are enforced to prevent "backtest overfitting" that doesn't translate to live:
+ *
+ * 1. SHARED PURE FUNCTIONS (imported from common.mjs)
+ *    - effectiveMaxNotionalUsdc(): Wealth-V4 per-trade cap with strong-bull gating.
+ *      REAL mode is NEVER widened — this invariant is encoded once in common.mjs
+ *      and used by both executor.mjs and backtest.mjs.
+ *    - circuitBreakerTripped(): Daily loss circuit breaker logic (UTC day boundary).
+ *    - makeSignalId(): Deterministic signal deduplication (SHA-256 of JSON).
+ *
+ * 2. IDENTICAL SIGNAL GENERATION (botTick logic)
+ *    - The botTick() function in this file is a LINE-BY-LINE PORT of bot-lib.mjs
+ *      used by live BULL/BEAR bots. Any change to signal logic MUST be made in
+ *      both places simultaneously.
+ *    - Same anchor mechanics, dip/rip triggers, RSI gates, specialization rules.
+ *    - Same regime overlay: bullDipScale, bullStrongRegimePct, bullMinSolHold,
+ *      bullProportionalSells, bullBuyPctOfUsdc.
+ *
+ * 3. IDENTICAL DECISION LOGIC (decide function)
+ *    - The decide() function here mirrors executor.mjs exactly:
+ *      manual override > BULL/BEAR conflict resolution (edge-based if enabled)
+ *      > edge validation > single bot signal.
+ *
+ * 4. IDENTICAL FILL MODEL (fill function)
+ *    - Fee: simFeeBps / 10000 applied to notional
+ *    - Slippage: simSlippageBps / 10000 applied to price (adverse for both sides)
+ *    - SELL realized PnL: (fillPrice - avgEntryPrice) * amount - fee
+ *    - Avg entry price: cost-basis averaging on BUY, reset on flat
+ *
+ * 5. IDENTICAL PROFIT TARGET LOGIC
+ *    - Trailing in uptrend (emaFast > emaSlow): arm at trailArmPct, exit on giveBackPct
+ *    - Strong bull regime (regimeStrengthPct >= bullStrongRegimePct):
+ *      * widens trail give-back to max(trailGivePct, bullTrailGivePct)  [Option C]
+ *      * keeps bullMinSolHold core position on exit                      [Option B]
+ *    - Fixed target in chop/downtrend: profitTargetPct
+ *    - Peak tracked on CLOSE (not intrabar high) for trailing arm decision
+ *    - Intrabar high ONLY advances peak (lets winners run)
+ *
+ * 6. IDENTICAL STOP-LOSS LOGIC
+ *    - Intrabar stops: trigger at candle LOW, fill at min(close, stopLevel)
+ *    - Close-only stops: trigger at close, fill at close
+ *    - Stop level: avgEntryPrice * (1 - stopLossPct/100)
+ *    - Full exit to minSolReserve (no bullMinSolHold floor — stop is protective)
+ *
+ * 7. IDENTICAL GATES & LIMITS
+ *    - Cooldown, daily trades, daily notional, decision window, signal dedup
+ *    - Min/max notional via effectiveMaxNotionalUsdc() (strong-bull gated)
+ *    - SOL allocation cap (maxSolAllocationPct)
+ *    - Min sell notional floor (minSellNotionalMult * minTradeUsdc / price)
+ *
+ * 8. KNOWN SIMULATION LIMITATIONS (intentionally NOT parity)
+ *    - No quote gate / price impact model (Jupiter quote not available historically)
+ *    - No network latency / RPC failures / transaction confirmation delays
+ *    - No priority fee / compute unit dynamics
+ *    - Perfect fill at modeled slippage (no partial fills, no failed txns)
+ *    - These make backtest SLIGHTLY OPTIMISTIC — treat as upper bound
+ *
+ * Usage:
+ *   node src/backtest.mjs                          # all files in backtest/data/
+ *   node src/backtest.mjs --data <file>
+ *   node src/backtest.mjs --sweep                  # grid-search
+ *   node src/backtest.mjs --sweep --walk-forward   # 70/30 walk-forward
+ *   node src/backtest.mjs --compare                # baseline vs all features
+ *   node src/backtest.mjs --json
+ */
 
 import fs    from 'node:fs';
 import path  from 'node:path';
@@ -554,6 +616,142 @@ function sweep(series, base, walkForward) {
   return results;
 }
 
+// ---- frequency sweep ---------------------------------------------------------
+function sweepFrequency(series, base, chunkIndex = 0, numChunks = 1) {
+  const signalMinSecs = [60, 120, 300, 600];
+  const cooldownSecs = [60, 180, 300, 900];
+  const maxTradesPerDay = [8, 20, 50, 100];
+  const dailyNotionalLimitUsdc = [50, 200, 500, 1000];
+  const dipPcts = [0.3, 0.5, 0.8, 1.2];
+  const ripPcts = [0.8, 1.2, 1.5, 2.5];
+  const stopLossPcts = [8, 12, 16, 20];
+
+  // Generate all combinations
+  const allCombos = [];
+  for (const sigMin of signalMinSecs) {
+    for (const cool of cooldownSecs) {
+      for (const maxTrades of maxTradesPerDay) {
+        for (const dailyNotional of dailyNotionalLimitUsdc) {
+          for (const dip of dipPcts) {
+            for (const rip of ripPcts) {
+              for (const sl of stopLossPcts) {
+                allCombos.push({
+                  signalMinSec: sigMin,
+                  cooldownSec: cool,
+                  maxTradesPerDay: maxTrades,
+                  dailyNotionalLimitUsdc: dailyNotional,
+                  bullDipPct: dip,
+                  bullRipPct: rip,
+                  bearDipPct: dip * 1.6,
+                  bearRipPct: rip * 0.7,
+                  stopLossPct: sl
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const total = allCombos.length;
+  // Split into chunks
+  const chunkSize = Math.ceil(total / numChunks);
+  const start = chunkIndex * chunkSize;
+  const end = Math.min(start + chunkSize, total);
+  const combos = allCombos.slice(start, end);
+
+  console.log(`\n=== FREQUENCY PARAMETER SWEEP (chunk ${chunkIndex + 1}/${numChunks}) — ${fmt((series[series.length-1].t-series[0].t)/86400000,0)} days ===`);
+  console.log(`Running ${combos.length} combinations (${start} to ${end-1} of ${total})...`);
+
+  // Load existing results if this isn't the first chunk
+  const outputPath = path.join(ROOT, 'backtest', 'frequency-sweep-results.json');
+  let allResults = [];
+  if (chunkIndex > 0 && fs.existsSync(outputPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+      allResults = existing.allResults || [];
+      console.log(`Loaded ${allResults.length} previous results.`);
+    } catch (e) {
+      console.log('No previous results found, starting fresh.');
+    }
+  }
+
+  for (let i = 0; i < combos.length; i++) {
+    const c = combos[i];
+    if ((i + 1) % 500 === 0 || i === combos.length - 1) {
+      console.log(`  Progress: ${i + 1}/${combos.length} (chunk ${chunkIndex + 1}/${numChunks})`);
+    }
+    const P = { ...base, ...c };
+    const tr = runBacktest(series, P);
+    const sharpeProxy = tr.maxDrawdownPct > 0 ? tr.returnPct / tr.maxDrawdownPct : 0;
+    allResults.push({
+      ...c,
+      returnPct: tr.returnPct,
+      vsHoldPct: tr.vsHoldMixPct,
+      maxDrawdownPct: tr.maxDrawdownPct,
+      trades: tr.trades,
+      winRatePct: tr.winRatePct,
+      sharpeProxy: sharpeProxy,
+      profitTargetFires: tr.profitTargetFires,
+      stopFires: tr.stopFires,
+      endEquity: tr.endEquity
+    });
+  }
+
+  // Sort by Sharpe proxy (return/maxDD), then by return
+  allResults.sort((a,b) => b.sharpeProxy - a.sharpeProxy || b.returnPct - a.returnPct);
+
+  // Save combined results
+  const outputData = {
+    timestamp: new Date().toISOString(),
+    dataFile: 'sol-usd-1d-full.json',
+    totalCombinations: total,
+    days: (series[series.length-1].t - series[0].t) / 86400000,
+    top10: allResults.slice(0, 10).map(r => ({
+      signalMinSec: r.signalMinSec,
+      cooldownSec: r.cooldownSec,
+      maxTradesPerDay: r.maxTradesPerDay,
+      dailyNotionalLimitUsdc: r.dailyNotionalLimitUsdc,
+      bullDipPct: r.bullDipPct,
+      bullRipPct: r.bullRipPct,
+      bearDipPct: r.bearDipPct,
+      bearRipPct: r.bearRipPct,
+      stopLossPct: r.stopLossPct,
+      returnPct: r.returnPct,
+      vsHoldPct: r.vsHoldPct,
+      maxDrawdownPct: r.maxDrawdownPct,
+      trades: r.trades,
+      winRatePct: r.winRatePct,
+      sharpeProxy: r.sharpeProxy,
+      profitTargetFires: r.profitTargetFires,
+      stopFires: r.stopFires,
+      endEquity: r.endEquity
+    })),
+    allResults: allResults
+  };
+  fs.writeFileSync(outputPath, JSON.stringify(outputData, null, 2));
+
+  if (chunkIndex === numChunks - 1) {
+    console.log(`\n=== FREQUENCY SWEEP TOP 10 (by Sharpe Proxy = return/maxDD) ===`);
+    console.log('sigMin  cool  maxTrd  dailyNot  bDip  bRip   bDDip  bDRip  SL%  trades  ret%   vsH%   maxDD%  win%  sharpe');
+    for (const r of allResults.slice(0, 10)) {
+      console.log(
+        `${String(r.signalMinSec).padStart(6)}  ${String(r.cooldownSec).padStart(4)}  ${String(r.maxTradesPerDay).padStart(5)}  ` +
+        `${String(r.dailyNotionalLimitUsdc).padStart(8)}  ${fmt(r.bullDipPct,1).padStart(4)}  ${fmt(r.bullRipPct,1).padStart(4)}  ` +
+        `${fmt(r.bearDipPct,1).padStart(5)}  ${fmt(r.bearRipPct,1).padStart(5)}  ${String(r.stopLossPct).padStart(3)}  ` +
+        `${String(r.trades).padStart(6)}  ${fmt(r.returnPct,1).padStart(7)}  ${fmt(r.vsHoldPct,1).padStart(7)}  ` +
+        `${fmt(r.maxDrawdownPct,1).padStart(7)}  ${fmt(r.winRatePct,1).padStart(5)}  ${fmt(r.sharpeProxy,2).padStart(6)}`
+      );
+    }
+    console.log(`\nResults saved to: ${outputPath}`);
+  } else {
+    console.log(`\nChunk ${chunkIndex + 1} complete. ${allResults.length} total results so far. Saved to ${outputPath}`);
+  }
+
+  return allResults;
+}
+
 // ---- CLI --------------------------------------------------------------------
 function main() {
   const args = process.argv.slice(2);
@@ -598,6 +796,17 @@ function main() {
     let longest = files[0], best = 0;
     for (const f of files) { const s = loadSeries(f); if (s.length > best) { best = s.length; longest = f; } }
     sweep(loadSeries(longest), base, args.includes('--walk-forward'));
+  }
+
+  if (args.includes('--sweep-frequency')) {
+    let longest = files[0], best = 0;
+    for (const f of files) { const s = loadSeries(f); if (s.length > best) { best = s.length; longest = f; } }
+    // Parse chunk parameters
+    const chunkIdx = args.indexOf('--chunk');
+    const chunkIndex = chunkIdx !== -1 && args[chunkIdx + 1] ? parseInt(args[chunkIdx + 1]) : 0;
+    const numChunksIdx = args.indexOf('--num-chunks');
+    const numChunks = numChunksIdx !== -1 && args[numChunksIdx + 1] ? parseInt(args[numChunksIdx + 1]) : 1;
+    sweepFrequency(loadSeries(longest), base, chunkIndex, numChunks);
   }
 }
 

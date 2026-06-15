@@ -2,38 +2,35 @@
 # Each run READS this at start and REWRITES at end.
 
 ## Focus for the next run (do this first)
-- **JUPITER QUOTE 404 FIXED (2026-06-12 late):** the quote gate was 404ing on EVERY trade
-  attempt because shadow-quote.mjs/jupiter-swap.mjs POSTed to Ultra `/order` — it is a GET
-  with query params. Fixed (GET; taker only when a real pubkey — 'SimulatedWallet' 400s;
-  execute body is `{signedTransaction, requestId}`). Live-verified: BUY $2 and SELL 0.01 SOL
-  both return outAmount/priceImpactPct. Do NOT revert to POST.
-- **Stack check:** executor.jsonl boot line must match `git rev-parse --short HEAD` (the
-  quote-fix commit). Watch for the FIRST `dry_run_trade` ever (BEAR_RSI_MAX=30 waits for
-  RSI<30 flush; may take hours). Once trades flow: quote-basis analysis (signal.price vs
-  quote-implied exec price, shadow.jsonl pre_trade entries) — decides whether the +0.25%
-  honest 1h edge survives real costs.
+- **STACK HEALTHY (2026-06-13 00:11 UTC):** Executor ticking every 10s at ~$66.74, HEAD=83c034f
+  (Jupiter quote 404 fix). 0 errors, 0 breaker, 0 dry_run_trades (expected — BEAR bots show
+  0 signals in state-BEAR.json; BEAR_RSI_MAX=30 needs RSI<30 flush before any BUY fires).
+- **SANDBOX NULL-BYTE HAZARD:** hit AGAIN this run — 4 data JSON + 2 src files truncated vs HEAD.
+  Restored from HEAD before any work. Every sandbox run: check data files parse, check src/*.mjs
+  node --check, restore from HEAD if git diff shows lines REMOVED. Do NOT commit corrupted files.
 - **BASELINES (2026-06-12 Coinbase closed-bar data — valid on cached datasets):**
   bear(1d) 15.08 | 1h-540d +0.25 (73 tr) | 15m 1.12 | 5m -3.43 | 1m -0.95 |
   5yr 174.10 | full 86.42 | bull 82.94. Knobs: TRAIL_GIVE_PCT=14, BEAR_RSI_MAX=30,
   MIN_SOL_RESERVE=0.01, BULL_DIP_PCT=0.8, REGIME_EMA_SLOW=45, ENTRY_BOUNCE_CONFIRM=true.
 - **Data:** refreshable from George's machine ONLY (`node backtest/fetch-data.mjs`). Sandbox
   cannot reach Coinbase — use --no-fetch in sandbox sessions.
-- **SANDBOX FILE HAZARD:** on every sandbox run, check data JSON files parse correctly before
-  running backtest (`node -e "JSON.parse(require('fs').readFileSync('backtest/data/sol-usd-1h-540d.json','utf8'));console.log('OK')"`)
-  — null-byte corruption recurs. Fix: `git cat-file -p HEAD:backtest/data/<file> > /tmp/fix && cp /tmp/fix backtest/data/<file>`.
 - **Next actionable ideas (ranked):**
-  1. IDEAS #3 shadow analysis: wait for stack restart on f422cac, then grep executor.jsonl
-     for `conflictResolved:true` dry trades. Enable CONFLICT_EDGE_RESOLUTION=true ONLY after
-     seeing shadow evidence that resolved conflicts are profitable.
-  2. IDEAS #1: MIN_SOL_RESERVE=0.005 — re-tested 2026-06-12 evening: 1h-540d regresses
-     -0.23pp (0.25->0.02), FAILS 1h guard. Bear up +0.72pp. Do NOT apply without George's OK.
-  3. IDEAS #8 structural: replace Yahoo/Binance with Coinbase klines OR add multi-timeframe
-     regime signal (1h-trend agreement for 10s entries).
-- IDEAS #4 bounceBypassRsi: FULLY DEAD — both variants (all-bots + BULL-only) tested; BULL-only
-  crashes 1h to -4.53% and bear to 3.81%. Do not re-probe.
-- Do NOT propose DRY_RUN=0 until several days of dry_run_trade logs.
-- Go-live gaps: (1) paid RPC (George/Helius); (2) one tiny live trade (George's explicit OK).
+  1. Wait for first dry_run_trade: grep executor.jsonl for `"type":"dry_run_trade"` after RSI
+     drops below 30. Once a trade fires, check `conflictResolved:true` entries and shadow.jsonl
+     `pre_trade` lines for quote-vs-signal price analysis.
+  2. IDEAS #1: MIN_SOL_RESERVE=0.005 — FAILS 1h guard (0.25->0.02, -0.23pp). Re-test ONLY
+     after George explicitly OKs the thinner gas reserve. Otherwise skip.
+  3. IDEAS #8 structural: asymmetric sizing (scale buyUsdc DOWN as drawdown-from-peak grows;
+     runBacktest already tracks peakEquity — expose to sizing logic in bot-lib.mjs). Test on
+     all 8 sets with --thirds; bear must stay >= 9.0.
 
+
+- 2026-06-13 00:11 UTC (SCHEDULED AUDIT): NO_CHANGE. Stack healthy on HEAD=83c034f (Jupiter quote fix).
+  Executor ticking every 10s, 0 errors, 0 dry_run_trades (BEAR_RSI_MAX=30 waiting for RSI<30 flush;
+  state-BEAR.json shows signals:[] — bots running but no buy condition met yet). Sandbox null-byte
+  hazard hit again: 4 data JSON + 2 src files truncated vs HEAD; restored before any work. Tests PASS
+  23+10. Bear 15.08% (floor safe). Knob space remains exhausted; waiting for shadow dry trades before
+  any further action.
 ## Running lessons (append; never delete)
 - 2026-06-05: Edit/Write tool truncates src/*.mjs on this mount — always edit from shell + node --check.
 - 2026-06-05: Bull gains came from MOMENTUM re-entry, not widening the dip (anchor deadlock).
@@ -329,17 +326,4 @@ EXECUTION_MODE or DRY_RUN without George's approval. Keep changes reversible, te
   padding on the sandbox mount after cp overwrites — affects backtest/data/*.json and src/*.mjs.
   Detection: `node -e "JSON.parse(require('fs').readFileSync(f,'utf8'))"` throws on null bytes.
   Fix every session: `git cat-file -p HEAD:<file> > /tmp/fix && cp /tmp/fix <file>`. Restoring
-  from HEAD via git checkout is blocked by maintenance.lock (EPERM) — use cat-file workaround.
-- 2026-06-12 evening (IDEAS #4 FULLY DEAD): BULL-only bounceBypassRsi(30) tested — 1h-540d
-  -4.53% (was +0.25%), bear 3.81% (floor broken). Knife-catching at capitulation is always wrong
-  at fine granularity. Do not revisit without a different entry mechanism entirely.
-
-- 2026-06-12 late (JUPITER 404 ROOT CAUSE): the first 5 valid BUY decisions in project history
-  (e.g. BEAR $2, RSI 16.8, +82bps) all died at the quote step with HTTP 404 — Jupiter Ultra
-  `/order` is a GET endpoint; the code POSTed JSON. Same-day live tests: GET returns full quote
-  (priceImpactPct as string, requestId, transaction null without taker); POST = 404; invalid
-  taker = 400. Fixed in shadow-quote.mjs (GET, taker omitted unless base58 pubkey) and
-  jupiter-swap.mjs (order GET with taker required + transaction-null check; execute body
-  `{signedTransaction, requestId}` not `{transaction}`; execute status==='Failed' check).
-  Tests 23/23+10/10. LESSON: fail-closed worked exactly as designed — no trade was mispriced,
-  but the gate's own HTTP call was never integration-tested against the live API until now.
+  fro

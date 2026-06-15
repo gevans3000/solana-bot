@@ -71,6 +71,10 @@ function decide(signals) {
   const bull = latestByBot.get('BULL') || null;
   const bear = latestByBot.get('BEAR') || null;
 
+  // CONFLICT RESOLUTION: BULL and BEAR bots emit opposite signals
+  // Default behavior (CONFLICT_EDGE_RESOLUTION=false): NO_TRADE (safe, avoids whipsaw)
+  // With CONFLICT_EDGE_RESOLUTION=true: pick signal with larger |edgeBps|
+  // This allows trading through conflicts when one bot has significantly stronger conviction
   if (bull && bear && bull.side !== bear.side) {
     if (!CFG.conflictEdgeResolution) return { action: 'NO_TRADE', reason: 'bot conflict', bull, bear };
     // pick the signal with the larger |edgeBps| — default OFF, enable with CONFLICT_EDGE_RESOLUTION=true
@@ -142,6 +146,16 @@ async function tick() {
     // ---- PROFIT TARGET (regime-conditional: trail in confirmed uptrend, fixed in chop) ----
     // Validated in backtest: a wide trailing give-back lets winners run in uptrends and
     // captures bear-market relief rallies, while the fixed target protects chop/downtrend.
+    // Logic:
+    // 1. Calculate gain% from average entry price
+    // 2. Track peak price since entry (high-water mark for trailing)
+    // 3. Calculate give-back% from peak (how much price has retraced)
+    // 4. Determine regime: "up" if fast EMA > slow EMA (confirmed uptrend)
+    // 5. In strong bull regime (regimeStrengthPct >= bullStrongRegimePct), widen trail give-back
+    //    to bullTrailGivePct (Option C: let winners run further in strong trends)
+    // 6. If trailInUptrend && regimeUp: ARM at trailArmPct gain, EXIT when giveBackPct >= effTrailGive
+    // 7. Else (chop/downtrend): EXIT at fixed profitTargetPct gain
+    // 8. On exit: sell entire position down to holdFloor (Option B: keep bullMinSolHold in strong bull)
     if (CFG.profitTargetEnabled && balances.sol > CFG.minSolReserve) {
       const portfolio = loadPortfolio();
       if (portfolio.avgEntryPrice > 0) {
@@ -159,8 +173,10 @@ async function tick() {
 
         let exit = false, kind = 'profit_target';
         if (CFG.trailInUptrend && regimeUp) {
+          // Trailing mode: only arm once gain >= trailArmPct, then exit on give-back from peak
           if (gainPct >= CFG.trailArmPct && giveBackPct >= effTrailGive) { exit = true; kind = 'trail_exit'; }
         } else if (gainPct >= CFG.profitTargetPct) {
+          // Fixed target mode: simple percentage gain exit (chop/downtrend)
           exit = true;
         }
 
@@ -178,7 +194,7 @@ async function tick() {
               state.lastTradeAt = NOW();
               state.peakSinceEntry = 0;
               saveJson('state-exec.json', state);
-              return;
+              return; // Exit tick early after profit target trade
             }
           } catch (err) {
             logJsonl('executor.jsonl', { t: NOW(), type: 'error', reason: 'profit_target_sell_failed', error: String(err) });
@@ -190,6 +206,12 @@ async function tick() {
     }
 
     // ---- STOP-LOSS: exit position when unrealized loss >= threshold ----
+    // Logic:
+    // 1. Calculate unrealized loss% from average entry price
+    // 2. If loss% <= -stopLossPct (e.g., -12%), trigger full protective exit
+    // 3. Sell entire position down to minSolReserve (no bullMinSolHold floor — stop-loss is always protective)
+    // 4. Uses current price as fill price (conservative; could use stop level for intrabar wicks)
+    // 5. Resets peakSinceEntry to 0 after exit
     if (CFG.stopLossEnabled && balances.sol > CFG.minSolReserve) {
       const portfolio = loadPortfolio();
       if (portfolio.avgEntryPrice > 0) {
@@ -205,7 +227,7 @@ async function tick() {
               state.lastTradeAt = NOW();
               state.peakSinceEntry = 0;
               saveJson('state-exec.json', state);
-              return;
+              return; // Exit tick early after stop-loss trade
             }
           } catch (err) {
             logJsonl('executor.jsonl', { t: NOW(), type: 'error', reason: 'stop_loss_sell_failed', error: String(err) });
@@ -326,10 +348,18 @@ async function tick() {
     }
 
     // Quote-aware net-edge gate (#3): fetch the real Jupiter quote and REFUSE to trade when the
-    // fill's price impact would erase the signal edge. Active whenever SHADOW_QUOTE_ON_TRADE=1 OR
-    // we are in REAL execution (real money always gets quote protection). In real mode a failed/
-    // missing quote FAILS CLOSED (skips the trade); in dry/shadow a quote error is logged and the
-    // sim proceeds so transient quote outages don't stall validation.
+    // fill's price impact would erase the signal edge.
+    // Active whenever SHADOW_QUOTE_ON_TRADE=1 OR we are in REAL execution
+    // (real money always gets quote protection).
+    // Failure modes:
+    //   - REAL mode: quote error/unavailable -> FAIL CLOSED (skip trade)
+    //   - SIM/SHADOW mode: quote error -> log and proceed (transient outages don't stall validation)
+    // Logic:
+    // 1. Fetch Jupiter quote for exact trade size (BUY: amountUsdc, SELL: amountSol)
+    // 2. Extract priceImpactPct from quote (Jupiter returns as percent, convert to bps * 100)
+    // 3. Calculate netEdgeBps = signal.edgeBps - priceImpactBps
+    // 4. If netEdgeBps < CFG.minNetEdgeBps (default 0 = block negative net edge), skip trade
+    // 5. Log all details to shadow.jsonl for post-trade analysis
     const _quoteGateActive = CFG.shadowQuoteOnTrade || CFG.executionMode === 'real';
     if (_quoteGateActive) {
       try {
@@ -348,8 +378,9 @@ async function tick() {
           return;
         }
 
-        // Price impact in bps. Jupiter priceImpactPct is treated as a percent (*100). If it ever
-        // arrives as a fraction this only makes the gate MORE conservative, never falsely aggressive.
+        // Price impact in bps. Jupiter priceImpactPct is treated as a percent (*100).
+        // If it ever arrives as a fraction this only makes the gate MORE conservative,
+        // never falsely aggressive.
         const pip = Number(shadowQuote && shadowQuote.priceImpactPct);
         const priceImpactBps = Number.isFinite(pip) ? Math.abs(pip) * 100 : null;
         const netEdgeBps = (priceImpactBps != null && Number.isFinite(signal.edgeBps))
