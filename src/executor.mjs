@@ -24,6 +24,20 @@ import { getOnChainBalances } from './on-chain-balance.mjs';
 import { sendAlert } from './alerts.mjs';
 import { loadKeypair, getWalletPublicKey } from './solana-signer.mjs';
 
+// Advanced strategy features
+import { 
+  getRegimeParams, 
+  getRegimeState, 
+  checkPartialExits, 
+  checkScaleIn, 
+  initPartialExits,
+  getMultiTfConfirmation,
+  getBestVenue,
+  recordQuoteResult,
+  calculatePositionSize,
+  recordTradeResult,
+} from './strategy_registry.mjs';
+
 function readSignals(state) {
   const p = fileInLogs('signals.jsonl');
   if (!fs.existsSync(p)) return [];
@@ -132,6 +146,12 @@ async function tick() {
 
     const price = await getSolUsdPrice();
 
+    // ---- REGIME-ADAPTIVE PARAMETERS: Update regime and get dynamic params ----
+    let regimeParams = null;
+    if (CFG.regimeAdaptiveEnabled) {
+      regimeParams = await getRegimeParams();
+    }
+
     // Check if price cache is stale
     const cacheFile = fileInState('price-cache.json');
     let priceCacheStale = false;
@@ -143,80 +163,120 @@ async function tick() {
 
     const balances = await getBalances(price);
 
-    // ---- PROFIT TARGET (regime-conditional: trail in confirmed uptrend, fixed in chop) ----
-    // Validated in backtest: a wide trailing give-back lets winners run in uptrends and
-    // captures bear-market relief rallies, while the fixed target protects chop/downtrend.
-    // Logic:
-    // 1. Calculate gain% from average entry price
-    // 2. Track peak price since entry (high-water mark for trailing)
-    // 3. Calculate give-back% from peak (how much price has retraced)
-    // 4. Determine regime: "up" if fast EMA > slow EMA (confirmed uptrend)
-    // 5. In strong bull regime (regimeStrengthPct >= bullStrongRegimePct), widen trail give-back
-    //    to bullTrailGivePct (Option C: let winners run further in strong trends)
-    // 6. If trailInUptrend && regimeUp: ARM at trailArmPct gain, EXIT when giveBackPct >= effTrailGive
-    // 7. Else (chop/downtrend): EXIT at fixed profitTargetPct gain
-    // 8. On exit: sell entire position down to holdFloor (Option B: keep bullMinSolHold in strong bull)
+    // ---- PROFIT TARGET with PARTIAL EXITS & SCALE-OUT ----
     if (CFG.profitTargetEnabled && balances.sol > CFG.minSolReserve) {
       const portfolio = loadPortfolio();
       if (portfolio.avgEntryPrice > 0) {
-        const gainPct = ((price - portfolio.avgEntryPrice) / portfolio.avgEntryPrice) * 100;
-        // Track running peak since entry (reset on exit / when flat).
-        state.peakSinceEntry = Math.max(state.peakSinceEntry || 0, price);
-        const giveBackPct = state.peakSinceEntry > 0
-          ? ((state.peakSinceEntry - price) / state.peakSinceEntry) * 100 : 0;
-        const regime = safeReadJsonFile(fileInState('regime.json')) || {};
-        const regimeUp = regime.emaFast != null && regime.emaSlow != null && regime.emaFast > regime.emaSlow;
-        // Option C parity: widen the trailing give-back in a strong confirmed bull.
-        const regimeStrengthPct = (regime.emaFast != null && regime.emaSlow != null && regime.emaSlow > 0)
-          ? ((regime.emaFast - regime.emaSlow) / regime.emaSlow) * 100 : 0;
-        const effTrailGive = regimeStrengthPct >= CFG.bullStrongRegimePct ? Math.max(CFG.trailGivePct, CFG.bullTrailGivePct) : CFG.trailGivePct;
-
-        let exit = false, kind = 'profit_target';
-        if (CFG.trailInUptrend && regimeUp) {
-          // Trailing mode: only arm once gain >= trailArmPct, then exit on give-back from peak
-          if (gainPct >= CFG.trailArmPct && giveBackPct >= effTrailGive) { exit = true; kind = 'trail_exit'; }
-        } else if (gainPct >= CFG.profitTargetPct) {
-          // Fixed target mode: simple percentage gain exit (chop/downtrend)
-          exit = true;
+        // Initialize partial exits if not already done
+        if (!state.partialExitsInitialized) {
+          initPartialExits(balances.sol, portfolio.avgEntryPrice);
+          state.partialExitsInitialized = true;
         }
 
-        if (exit) {
-          logJsonl('executor.jsonl', { t: NOW(), type: kind, price, avgEntry: portfolio.avgEntryPrice, gainPct: +gainPct.toFixed(2), giveBackPct: +giveBackPct.toFixed(2), regimeUp, peak: state.peakSinceEntry });
-          try {
-            const walletKeypair = CFG.executionMode === 'real' ? loadKeypair() : null;
-            // Option B parity: keep a core SOL position in a strong confirmed bull.
-            const holdFloor = (regimeStrengthPct >= CFG.bullStrongRegimePct && CFG.bullMinSolHold > 0)
-              ? Math.max(CFG.minSolReserve, CFG.bullMinSolHold) : CFG.minSolReserve;
-            const sellAmt = +(balances.sol - holdFloor).toFixed(6);
-            if (sellAmt > 0) {
-              const ptExec = await executeTrade({ side: 'SELL', amount: sellAmt, price, signalId: `pt-${Date.now()}`, walletKeypair });
+        // Check partial take-profit tiers
+        const partialExits = checkPartialExits(price);
+        for (const exit of partialExits) {
+          if (exit.amount > 0) {
+            logJsonl('executor.jsonl', { t: NOW(), type: 'partial_exit', ...exit, price, avgEntry: portfolio.avgEntryPrice });
+            try {
+              const walletKeypair = CFG.executionMode === 'real' ? loadKeypair() : null;
+              const ptExec = await executeTrade({ side: 'SELL', amount: exit.amount, price, signalId: `pt-${exit.tier}-${Date.now()}`, walletKeypair });
               recordRealizedLoss(state, ptExec);
               state.lastTradeAt = NOW();
-              state.peakSinceEntry = 0;
+              // Don't reset peak here - let trailing continue on remainder
               saveJson('state-exec.json', state);
-              return; // Exit tick early after profit target trade
+              // Continue checking other tiers
+            } catch (err) {
+              logJsonl('executor.jsonl', { t: NOW(), type: 'error', reason: 'partial_exit_failed', error: String(err) });
             }
+          }
+        }
+
+        // Check scale-in opportunity (add to winners)
+        const regimeState = getRegimeState();
+        const regimeData = safeReadJsonFile(fileInState('regime.json')) || {};
+        const scaleIn = checkScaleIn(price, regimeData.emaFast, regimeData.emaSlow);
+        if (scaleIn) {
+          logJsonl('executor.jsonl', { t: NOW(), type: 'scale_in', ...scaleIn });
+          try {
+            const walletKeypair = CFG.executionMode === 'real' ? loadKeypair() : null;
+            const siExec = await executeTrade({ side: 'BUY', amount: scaleIn.amount, price, signalId: `si-${scaleIn.addNumber}-${Date.now()}`, walletKeypair });
+            // Re-init partial exits with new position size
+            const newPortfolio = loadPortfolio();
+            initPartialExits(newPortfolio.sol, newPortfolio.avgEntryPrice);
+            state.lastTradeAt = NOW();
+            saveJson('state-exec.json', state);
+            return; // Exit tick early after scale-in
           } catch (err) {
-            logJsonl('executor.jsonl', { t: NOW(), type: 'error', reason: 'profit_target_sell_failed', error: String(err) });
+            logJsonl('executor.jsonl', { t: NOW(), type: 'error', reason: 'scale_in_failed', error: String(err) });
+          }
+        }
+
+        // Original trailing/fixed target logic (for remainder after partial exits)
+        if (partialExits.length === 0) { // Only if no partial exit fired
+          const gainPct = ((price - portfolio.avgEntryPrice) / portfolio.avgEntryPrice) * 100;
+          state.peakSinceEntry = Math.max(state.peakSinceEntry || 0, price);
+          const giveBackPct = state.peakSinceEntry > 0
+            ? ((state.peakSinceEntry - price) / state.peakSinceEntry) * 100 : 0;
+          const regime = safeReadJsonFile(fileInState('regime.json')) || {};
+          const regimeUp = regime.emaFast != null && regime.emaSlow != null && regime.emaFast > regime.emaSlow;
+          const regimeStrengthPct = (regime.emaFast != null && regime.emaSlow != null && regime.emaSlow > 0)
+            ? ((regime.emaFast - regime.emaSlow) / regime.emaSlow) * 100 : 0;
+          
+          // Use regime-adaptive trailing give-back if available
+          let effTrailGive = CFG.trailGivePct;
+          if (regimeParams && regimeParams.trailGivePct) {
+            effTrailGive = regimeParams.trailGivePct;
+          } else if (regimeStrengthPct >= CFG.bullStrongRegimePct) {
+            effTrailGive = Math.max(CFG.trailGivePct, CFG.bullTrailGivePct);
+          }
+
+          let exit = false, kind = 'profit_target';
+          if (CFG.trailInUptrend && regimeUp) {
+            if (gainPct >= CFG.trailArmPct && giveBackPct >= effTrailGive) { exit = true; kind = 'trail_exit'; }
+          } else if (gainPct >= CFG.profitTargetPct) {
+            exit = true;
+          }
+
+          if (exit) {
+            logJsonl('executor.jsonl', { t: NOW(), type: kind, price, avgEntry: portfolio.avgEntryPrice, gainPct: +gainPct.toFixed(2), giveBackPct: +giveBackPct.toFixed(2), regimeUp, peak: state.peakSinceEntry });
+            try {
+              const walletKeypair = CFG.executionMode === 'real' ? loadKeypair() : null;
+              const holdFloor = (regimeStrengthPct >= CFG.bullStrongRegimePct && CFG.bullMinSolHold > 0)
+                ? Math.max(CFG.minSolReserve, CFG.bullMinSolHold) : CFG.minSolReserve;
+              const sellAmt = +(balances.sol - holdFloor).toFixed(6);
+              if (sellAmt > 0) {
+                const ptExec = await executeTrade({ side: 'SELL', amount: sellAmt, price, signalId: `pt-${Date.now()}`, walletKeypair });
+                recordRealizedLoss(state, ptExec);
+                state.lastTradeAt = NOW();
+                state.peakSinceEntry = 0;
+                state.partialExitsInitialized = false; // Reset for next position
+                saveJson('state-exec.json', state);
+                return; // Exit tick early after profit target trade
+              }
+            } catch (err) {
+              logJsonl('executor.jsonl', { t: NOW(), type: 'error', reason: 'profit_target_sell_failed', error: String(err) });
+            }
           }
         }
       } else {
         state.peakSinceEntry = 0; // flat: reset peak
+        state.partialExitsInitialized = false;
       }
     }
 
     // ---- STOP-LOSS: exit position when unrealized loss >= threshold ----
-    // Logic:
-    // 1. Calculate unrealized loss% from average entry price
-    // 2. If loss% <= -stopLossPct (e.g., -12%), trigger full protective exit
-    // 3. Sell entire position down to minSolReserve (no bullMinSolHold floor — stop-loss is always protective)
-    // 4. Uses current price as fill price (conservative; could use stop level for intrabar wicks)
-    // 5. Resets peakSinceEntry to 0 after exit
+    // Use regime-adaptive stop loss if available
+    let stopLossPct = CFG.stopLossPct;
+    if (regimeParams && regimeParams.stopLossPct) {
+      stopLossPct = regimeParams.stopLossPct;
+    }
+    
     if (CFG.stopLossEnabled && balances.sol > CFG.minSolReserve) {
       const portfolio = loadPortfolio();
       if (portfolio.avgEntryPrice > 0) {
         const unrealizedPct = ((price - portfolio.avgEntryPrice) / portfolio.avgEntryPrice) * 100;
-        if (unrealizedPct <= -CFG.stopLossPct) {
+        if (unrealizedPct <= -stopLossPct) {
           logJsonl('executor.jsonl', { t: NOW(), type: 'stop_loss', price, avgEntry: portfolio.avgEntryPrice, unrealizedPct: +unrealizedPct.toFixed(2) });
           try {
             const walletKeypair = CFG.executionMode === 'real' ? loadKeypair() : null;
@@ -226,6 +286,7 @@ async function tick() {
               recordRealizedLoss(state, slExec);
               state.lastTradeAt = NOW();
               state.peakSinceEntry = 0;
+              state.partialExitsInitialized = false;
               saveJson('state-exec.json', state);
               return; // Exit tick early after stop-loss trade
             }
@@ -238,6 +299,19 @@ async function tick() {
 
     const freshSignals = activeSignals(readSignals(state));
     const decision = decide(freshSignals);
+
+    // ---- MULTI-TF CONFIRMATION: Only trade if higher timeframes agree ----
+    if (decision.action === 'TRADE' && !decision.manual && CFG.multiTfEnabled) {
+      const botType = signal?.bot || 'BULL'; // Use signal's bot type
+      const mtfConfirmation = await getMultiTfConfirmation(botType);
+      if (!mtfConfirmation.allowed) {
+        logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'multi_tf_rejected', confirmation: mtfConfirmation });
+        saveJson('state-exec.json', state);
+        return;
+      }
+      // Log confirmation for analysis
+      logJsonl('executor.jsonl', { t: NOW(), type: 'multi_tf_confirmed', confirmation: mtfConfirmation });
+    }
 
     if (state.lastTradeAt && !decision.manual) {
       const elapsed = (Date.now() - new Date(state.lastTradeAt).getTime()) / 1000;

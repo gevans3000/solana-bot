@@ -454,6 +454,48 @@ export const CFG = {
   realDailyNotionalLimitUsdc: Math.max(1, num('REAL_DAILY_NOTIONAL_LIMIT_USDC', 50)),
   dailyLossLimitUsdc: Math.max(0, num('DAILY_LOSS_LIMIT_USDC', 3.0)),
   privateKey:      process.env.PRIVATE_KEY || '',
+
+  // ============================================================================
+  // ADVANCED STRATEGY FEATURES (Regime-Adaptive, Partial Exits, Multi-TF, Smart Routing, Dynamic Sizing)
+  // ============================================================================
+
+  // Regime-Adaptive Parameters
+  regimeAdaptiveEnabled: bool('REGIME_ADAPTIVE_ENABLED', true),
+  regimeHmmStates: Math.max(2, num('REGIME_HMM_STATES', 3)),
+  regimeTransitionTicks: Math.max(1, num('REGIME_TRANSITION_TICKS', 5)),
+  regimeParams: (() => { try { return JSON.parse(process.env.REGIME_PARAMS || '{}'); } catch { return {}; } })(),
+
+  // Partial Take-Profit & Scale-Out
+  partialTpEnabled: bool('PARTIAL_TP_ENABLED', true),
+  partialTpTiers: (() => { try { return JSON.parse(process.env.PARTIAL_TP_TIERS || '[{"pct":1.5,"size":0.3},{"pct":3,"size":0.3},{"pct":5,"size":0.4}]'); } catch { return []; } })(),
+  trailArmPct: Math.max(0.5, num('TRAIL_ARM_PCT', 2.0)),
+  trailGivePct: Math.max(0.2, num('TRAIL_GIVE_PCT', 10)),
+  scaleInEnabled: bool('SCALE_IN_ENABLED', true),
+  scaleInMaxAdds: Math.max(0, num('SCALE_IN_MAX_ADDS', 2)),
+  scaleInPullbackPct: Math.max(0.1, num('SCALE_IN_PULLBACK_PCT', 1.0)),
+  scaleInEmaDistancePct: Math.max(0.1, num('SCALE_IN_EMA_DISTANCE_PCT', 0.5)),
+  scaleInAddSizeMult: Math.max(0.1, num('SCALE_IN_ADD_SIZE_MULT', 0.5)),
+  scaleInMinConfidence: Math.max(0, Math.min(1, num('SCALE_IN_MIN_CONFIDENCE', 0.6))),
+
+  // Multi-Timeframe Confirmation
+  multiTfEnabled: bool('MULTI_TF_ENABLED', true),
+  multiTfTimeframes: (() => { try { return JSON.parse(process.env.MULTI_TF_TIMEFRAMES || '["5m","15m","1h","4h"]'); } catch { return ['5m','15m','1h','4h']; } })(),
+  multiTfMaxLatencyMs: Math.max(50, num('MULTI_TF_MAX_LATENCY_MS', 100)),
+  multiTfRegimeFilter: bool('MULTI_TF_REGIME_FILTER', true),
+
+  // Smart Order Routing
+  smartRoutingEnabled: bool('SMART_ROUTING_ENABLED', true),
+  smartRoutingVenues: (() => { try { return JSON.parse(process.env.SMART_ROUTING_VENUES || '[]'); } catch { return []; } })(),
+
+  // Dynamic Position Sizing
+  dynamicSizingEnabled: bool('DYNAMIC_SIZING_ENABLED', true),
+  targetVolDaily: Math.max(0.1, num('TARGET_VOL_DAILY', 2.0)), // percentage
+  maxDrawdownLimitPct: Math.max(1, num('MAX_DRAWDOWN_LIMIT_PCT', 15)), // percentage
+  maxDynamicSizeMult: Math.max(0.5, num('MAX_DYNAMIC_SIZE_MULT', 3.0)),
+  minDynamicSizeMult: Math.max(0.01, num('MIN_DYNAMIC_SIZE_MULT', 0.1)),
+  regimeSizeBullMult: Math.max(0.1, num('REGIME_SIZE_BULL_MULT', 1.5)),
+  regimeSizeBearMult: Math.max(0.1, num('REGIME_SIZE_BEAR_MULT', 0.5)),
+  regimeSizeChopMult: Math.max(0.1, num('REGIME_SIZE_CHOP_MULT', 0.3)),
 };
 
 function validateConfig() {
@@ -466,6 +508,12 @@ function validateConfig() {
     'mockDriftBps','mockVolBps','simStartUsdc','simStartSol','simFeeBps','simSlippageBps',
     'usdcReserve','usdcProfitMin','profitSweepPct','sweepEverySec','minSolForSweep',
     'stalePriceSec','realMaxTradesPerDay','realMaxNotionalUsdc','realDailyNotionalLimitUsdc',
+    // Advanced strategy features
+    'regimeHmmStates','regimeTransitionTicks','trailArmPct','trailGivePct',
+    'scaleInMaxAdds','scaleInPullbackPct','scaleInEmaDistancePct','scaleInAddSizeMult',
+    'scaleInMinConfidence','multiTfMaxLatencyMs','targetVolDaily',
+    'maxDrawdownLimitPct','maxDynamicSizeMult','minDynamicSizeMult',
+    'regimeSizeBullMult','regimeSizeBearMult','regimeSizeChopMult',
   ];
   for (const field of numericFields) {
     if (!Number.isFinite(CFG[field])) throw new Error(`${field} must be a finite number`);
