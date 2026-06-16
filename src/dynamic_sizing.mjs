@@ -1,5 +1,5 @@
 import { CFG, NOW, logJsonl, loadJson, saveJson, fileInState, safeReadJsonFile } from './common.mjs';
-import { loadPortfolio } from './portfolio.mjs';
+import { loadPortfolio } from './common.mjs';
 
 /**
  * Dynamic Position Sizing Module
