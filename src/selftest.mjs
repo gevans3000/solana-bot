@@ -11,10 +11,8 @@ import { runBacktest, loadSeries } from './backtest.mjs';
 import { circuitBreakerTripped, saveJson, fileInState } from './common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT      = path.resolve(__dirname, '..');
-const EXAMPLE_ENV = path.join(ROOT, '.env.example');
-
-let passed = 0, failed = 0;
+}
+}
 
 function assert(name, condition, detail = '') {
   if (condition) {
@@ -24,11 +22,9 @@ function assert(name, condition, detail = '') {
     console.error(`  FAIL  ${name}${detail ? ' — ' + detail : ''}`);
     failed++;
   }
-}
+  }
 
-// Load params from .env.example (the committed default config)
-function loadExampleParams() {
-  const envText = fs.readFileSync(EXAMPLE_ENV, 'utf8');
+  function assert(name, condition, detail = '') {
   const env = {};
   for (const line of envText.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -185,14 +181,10 @@ function loadExampleParams() {
     bearBuyUsdc: num('BEAR_BUY_USDC') ?? 15,
     bearSellSol: num('BEAR_SELL_SOL') ?? 0.15,
     minSellNotionalMult: num('MIN_SELL_NOTIONAL_MULT') ?? 0,
-    entryBounceConfirm: bool('ENTRY_BOUNCE_CONFIRM') ?? false,
-  }
-}
-const ROOT      = path.resolve(__dirname, '..');
+    }
+    }
 
-let passed = 0, failed = 0;
-
-function assert(name, condition, detail = '') {
+    function assert(name, condition, detail = '') {
   if (condition) {
     console.log(`  PASS  ${name}`);
     passed++;
@@ -200,11 +192,9 @@ function assert(name, condition, detail = '') {
     console.error(`  FAIL  ${name}${detail ? ' — ' + detail : ''}`);
     failed++;
   }
-}
+  }
 
-const EXAMPLE_PARAMS = loadExampleParams();
-
-function baseParams(overrides = {}) {
+  function assert(name, condition, detail = '') {
   return { ...EXAMPLE_PARAMS, ...overrides };
 }
 
