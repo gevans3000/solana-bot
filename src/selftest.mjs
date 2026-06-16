@@ -11,8 +11,10 @@ import { runBacktest, loadSeries } from './backtest.mjs';
 import { circuitBreakerTripped, saveJson, fileInState } from './common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-}
-}
+const ROOT      = path.resolve(__dirname, '..');
+const EXAMPLE_ENV = path.join(ROOT, '.env.example');
+
+let passed = 0, failed = 0;
 
 function assert(name, condition, detail = '') {
   if (condition) {
@@ -22,9 +24,11 @@ function assert(name, condition, detail = '') {
     console.error(`  FAIL  ${name}${detail ? ' — ' + detail : ''}`);
     failed++;
   }
-  }
+}
 
-  function assert(name, condition, detail = '') {
+// Load params from .env.example (the committed default config)
+function loadExampleParams() {
+  const envText = fs.readFileSync(EXAMPLE_ENV, 'utf8');
   const env = {};
   for (const line of envText.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -124,67 +128,8 @@ function assert(name, condition, detail = '') {
     bearBuyUsdc:     Math.max(1,    num('BEAR_BUY_USDC', 15)),
     bearSellSol:     Math.max(0.001, num('BEAR_SELL_SOL', 0.15)),
     minSellNotionalMult: Math.max(0, num('MIN_SELL_NOTIONAL_MULT', 0)),
-    mockStartPrice:  Math.max(1,    num('MOCK_START_PRICE', 180)),
-    mockDriftBps:    num('MOCK_DRIFT_BPS', 18),
-    mockVolBps:      num('MOCK_VOL_BPS', 45),
-    simStartUsdc:    Math.max(0,    num('SIM_START_USDC', 1000)),
-    simStartSol:     Math.max(0,    num('SIM_START_SOL', 5)),
-    simFeeBps:       Math.max(0,    num('SIM_FEE_BPS', 30)),
-    simSlippageBps:  Math.max(0,    num('SIM_SLIPPAGE_BPS', 8)),
-    usdcReserve:     Math.max(0,    num('USDC_RESERVE', 300)),
-    usdcProfitMin:   Math.max(0,    num('USDC_PROFIT_MIN', 25)),
-    profitSweepPct:  Math.max(0, Math.min(1, num('PROFIT_SWEEP_PCT', 0.5))),
-    sweepEverySec:   Math.max(30,   num('SWEEP_EVERY_SEC', 600)),
-    minSolForSweep:  Math.max(0,    num('MIN_SOL_FOR_SWEEP', 0.05)),
-    profitWallet:    env.PROFIT_WALLET || '',
-    runOnce:         bool('RUN_ONCE', false),
-    priceMode:       env.PRICE_MODE || 'auto',
-    airdropOnWallet: bool('AIRDROP_ON_WALLET', false),
-    airdropSol:      Math.max(0.1,  num('AIRDROP_SOL', 1)),
-    solMint:         env.SOL_MINT  || 'So11111111111111111111111111111111111111112',
-    usdcMint:        env.USDC_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    shadowMode:      bool('SHADOW_MODE', false),
-    shadowQuoteOnTrade: bool('SHADOW_QUOTE_ON_TRADE', true),
-    stalePriceSec:   Math.max(10,   num('STALE_PRICE_SEC', 60)),
-    alertWebhookUrl: env.ALERT_WEBHOOK_URL || '',
-    alertOnTrade:    bool('ALERT_ON_TRADE', false),
-    alertOnError:    bool('ALERT_ON_ERROR', false),
-    alertOnBreaker:  bool('ALERT_ON_BREAKER', true),
-    bullBuyPctOfUsdc: Math.max(0, num('BULL_BUY_PCT_OF_USDC', 0.15)),
-    maxSlippageBps:  Math.max(10, num('MAX_SLIPPAGE_BPS', 100)),
-    priorityFeeLamports: Math.max(0, num('PRIORITY_FEE_LAMPORTS', 5000)),
-    realMaxTradesPerDay: Math.max(1, num('REAL_MAX_TRADES_PER_DAY', 5)),
-    realMaxNotionalUsdc: Math.max(1, num('REAL_MAX_NOTIONAL_USDC', 25)),
-    realDailyNotionalLimitUsdc: Math.max(1, num('REAL_DAILY_NOTIONAL_LIMIT_USDC', 50)),
-    dailyLossLimitUsdc: Math.max(0, num('DAILY_LOSS_LIMIT_USDC', 3.0)),
-    privateKey:      env.PRIVATE_KEY || '',
-    bullStrongRegimePct: num('BULL_STRONG_REGIME_PCT') ?? 10,
-    bullTrailGivePct: num('BULL_TRAIL_GIVE_PCT') ?? 25,
-    bullMinSolHold: num('BULL_MIN_SOL_HOLD') ?? 0,
-    bullProportionalSells: bool('BULL_PROPORTIONAL_SELLS') ?? false,
-    minNetEdgeBps: num('MIN_NET_EDGE_BPS') ?? 0,
-    bullMaxNotionalUsdc: num('BULL_MAX_NOTIONAL_USDC') ?? 25,
-    trailGivePct: num('TRAIL_GIVE_PCT') ?? 10,
-    bearRsiMax: num('BEAR_RSI_MAX') ?? 35,
-    bullRegimeThreshold: num('BULL_REGIME_THRESHOLD') ?? 7.0,
-    bullDipScale: num('BULL_DIP_SCALE') ?? 3.0,
-    regimeSizeEnabled: bool('REGIME_SIZE_ENABLED') ?? true,
-    regimeSizeUpMult: num('REGIME_SIZE_UP_MULT') ?? 2.0,
-    regimeSizeDownMult: num('REGIME_SIZE_DOWN_MULT') ?? 0.75,
-    regimeSizeHighRsi: num('REGIME_SIZE_HIGH_RSI') ?? 100,
-    bullDipPct: num('BULL_DIP_PCT') ?? 0.5,
-    bullRipPct: num('BULL_RIP_PCT') ?? 1.5,
-    bullBuyUsdc: num('BULL_BUY_USDC') ?? 25,
-    bullSellSol: num('BULL_SELL_SOL') ?? 0.15,
-    bearDipPct: num('BEAR_DIP_PCT') ?? 1.5,
-    bearRipPct: num('BEAR_RIP_PCT') ?? 0.5,
-    bearBuyUsdc: num('BEAR_BUY_USDC') ?? 15,
-    bearSellSol: num('BEAR_SELL_SOL') ?? 0.15,
-    minSellNotionalMult: num('MIN_SELL_NOTIONAL_MULT') ?? 0,
-    }
-    }
-
-    function assert(name, condition, detail = '') {
+    entryBounceConfirm: bool('ENTRY_BOUNCE_CONFIRM') ?? false,
+  };\n}\n\nfunction assert(name, condition, detail = '') {
   if (condition) {
     console.log(`  PASS  ${name}`);
     passed++;
@@ -192,9 +137,11 @@ function assert(name, condition, detail = '') {
     console.error(`  FAIL  ${name}${detail ? ' — ' + detail : ''}`);
     failed++;
   }
-  }
+}
 
-  function assert(name, condition, detail = '') {
+const EXAMPLE_PARAMS = loadExampleParams();
+
+function baseParams(overrides = {}) {
   return { ...EXAMPLE_PARAMS, ...overrides };
 }
 
