@@ -446,7 +446,7 @@ async function tick() {
         });
 
         const shadowBalances = CFG.executionMode === 'real' ? await getOnChainBalances(walletAddress) : null;
-        if (shadowQuote && shadowQuote.error && CFG.executionMode === 'real') { // real money: bad quote => do not trade
+        if (shadowQuote && shadowQuote.error && CFG.executionMode === 'real' && !CFG.dryRun) { // real money only: bad quote => do not trade
           logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'quote error (failing closed)', signal, error: shadowQuote.error });
           saveJson('state-exec.json', state);
           return;
