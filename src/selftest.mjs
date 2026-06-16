@@ -74,7 +74,10 @@ console.log('\nTest 4: backtest data files exist');
   }
 }
 
-console.log('\nTest 5: 1h-540d backtest return > 0% after fees (two-window validated floor)');
+// Note: Test 5 validates the LIVE .env params (not .env.example) because the bear floor
+// depends on tuned values (BEAR_DIP_PCT=0.01, TRAIL_GIVE_PCT=14) that differ from defaults.
+// Both configs are profitable on 1h-540d; this test guards against regressions in the live config.
+console.log('\nTest 5: 1h-540d backtest return > 0% after fees (live .env params, two-window validated)');
 {
   const { paramsFromCfg, runBacktest, loadSeries } = await import('./backtest.mjs');
   const dataPath = path.join(ROOT, 'backtest/data/sol-usd-1h-540d.json');
