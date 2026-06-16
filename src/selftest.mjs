@@ -74,6 +74,24 @@ console.log('\nTest 4: backtest data files exist');
   }
 }
 
+console.log('\nTest 5: 1h-540d backtest return > 0% after fees (two-window validated floor)');
+{
+  const { paramsFromCfg, runBacktest, loadSeries } = await import('./backtest.mjs');
+  const dataPath = path.join(ROOT, 'backtest/data/sol-usd-1h-540d.json');
+  if (!fs.existsSync(dataPath)) {
+    assert('1h-540d data present', false, 'missing ' + dataPath);
+  } else {
+    const series = loadSeries(dataPath);
+    const P = paramsFromCfg();
+    const r = runBacktest(series, P);
+    const pct = +r.returnPct.toFixed(2);
+    assert('1h-540d returnPct > 0% (fees modeled)', pct > 0,
+      `got ${pct}% on ${r.trades} trades — current params fail the floor`);
+    assert('1h-540d trades >= 500', r.trades >= 500,
+      `only ${r.trades} trades — insufficient data`);
+  }
+}
+
 console.log('\n' + '─'.repeat(50));
 console.log('Results: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) {
