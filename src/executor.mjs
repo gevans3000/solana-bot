@@ -302,7 +302,7 @@ async function tick() {
 
     // ---- MULTI-TF CONFIRMATION: Only trade if higher timeframes agree ----
     if (decision.action === 'TRADE' && !decision.manual && CFG.multiTfEnabled) {
-      const botType = signal?.bot || 'BULL'; // Use signal's bot type
+      const botType = decision.chosen?.bot || 'BULL';
       const mtfConfirmation = await getMultiTfConfirmation(botType);
       if (!mtfConfirmation.allowed) {
         logJsonl('executor.jsonl', { t: NOW(), type: 'skip', reason: 'multi_tf_rejected', confirmation: mtfConfirmation });
