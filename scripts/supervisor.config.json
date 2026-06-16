@@ -1,0 +1,72 @@
+{
+  "processes": [
+    {
+      "name": "executor",
+      "script": "src/executor.mjs",
+      "args": [],
+      "instances": 1,
+      "autorestart": true,
+      "maxRestarts": 5,
+      "restartDelay": 10000,
+      "env": {}
+    },
+    {
+      "name": "bull-bot",
+      "script": "src/bot-bull.mjs",
+      "args": [],
+      "instances": 1,
+      "autorestart": true,
+      "maxRestarts": 5,
+      "restartDelay": 5000,
+      "env": {}
+    },
+    {
+      "name": "bear-bot",
+      "script": "src/bot-bear.mjs",
+      "args": [],
+      "instances": 1,
+      "autorestart": true,
+      "maxRestarts": 5,
+      "restartDelay": 5000,
+      "env": {}
+    },
+    {
+      "name": "sweeper",
+      "script": "src/sweeper.mjs",
+      "args": [],
+      "instances": 1,
+      "autorestart": true,
+      "maxRestarts": 3,
+      "restartDelay": 10000,
+      "env": {}
+    },
+    {
+      "name": "ui-server",
+      "script": "src/ui-server.mjs",
+      "args": [],
+      "instances": 1,
+      "autorestart": true,
+      "maxRestarts": 3,
+      "restartDelay": 5000,
+      "env": {}
+    }
+  ],
+  "healthCheck": {
+    "enabled": true,
+    "port": 8788,
+    "path": "/health",
+    "interval": 30000
+  },
+  "logging": {
+    "maxSizeMB": 100,
+    "maxFiles": 10,
+    "compress": true
+  },
+  "resources": {
+    "cpuAlertPercent": 80,
+    "ramAlertMB": 2048
+  },
+  "gracefulShutdown": {
+    "timeout": 30000
+  }
+}
